@@ -1,0 +1,5 @@
+# Pocket Home behind Caddy. Homepage widgets and linked apps send their own
+# bearer token to /api/*.
+home.example.com {
+	reverse_proxy pocket-home:8080
+}

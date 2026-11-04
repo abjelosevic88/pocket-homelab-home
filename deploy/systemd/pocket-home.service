@@ -1,0 +1,23 @@
+[Unit]
+Description=Pocket Home — look after your home
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pocket-home
+Group=pocket-home
+ExecStart=/usr/local/bin/pocket-home
+Environment=DATA_DIR=/var/lib/pocket-home
+Environment=PORT=8080
+Environment=BASE_URL=https://home.example.com
+Environment=SECURE_COOKIES=true
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pocket-home
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
