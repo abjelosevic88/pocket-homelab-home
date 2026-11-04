@@ -355,6 +355,7 @@ func (s *Server) handleCreateThing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nt, _ := s.store.GetThing(ctx, uid, t.ID)
+	s.thingSaved(ctx, uid, nt)
 	writeJSON(w, http.StatusCreated, nt)
 }
 
@@ -382,7 +383,17 @@ func (s *Server) handleUpdateThing(w http.ResponseWriter, r *http.Request) {
 	}
 	nt, _ := s.store.GetThing(ctx, uid, t.ID)
 	s.syncCalendarSoon(uid)
+	s.thingSaved(ctx, uid, nt)
 	writeJSON(w, http.StatusOK, nt)
+}
+
+// thingSaved tells the Core bus a thing was created or changed, so apps such
+// as Pocket Renewals can pick up its warranty right away.
+func (s *Server) thingSaved(ctx context.Context, uid int64, t *store.Thing) {
+	if t == nil {
+		return
+	}
+	s.publish(ctx, uid, "home.thing_saved", "thing:"+itoa(t.ID), map[string]any{"thing_id": t.ID, "name": t.Name, "home": t.HomeName, "warranty_until": t.WarrantyUntil})
 }
 
 func (s *Server) handleDeleteThing(w http.ResponseWriter, r *http.Request) {

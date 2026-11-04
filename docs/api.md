@@ -62,7 +62,7 @@ JSON over HTTP at `/api/v1`. Authenticate with the session cookie, a personal to
 
 Home offers `home:read` (overview, due, day, search, spending, homes, things, upkeep, log, meters and readings, pros) and `home:write` (`POST /records`, `PUT/DELETE /records/{id}` for entries that app made, `POST /meters/{id}/readings`, `POST /jobs/{id}/done`). Everything else answers 403 to a link token.
 
-It uses Pocket Money (`accounts:read`, `transactions:write`), Pocket Calendar (`calendar:read`, `calendar:write`), Pocket Tasks (`tasks:write`), Pocket Contacts (`contacts:read`), Pocket Documents (`documents:read`), Pocket Inventory (`items:read`) and Pocket AI inference. Events: `home.job_done`, `home.job_due`, `home.record_added`, `home.reading_added`, `home.warranty_ending`, each with `user_email`.
+It uses Pocket Money (`accounts:read`, `transactions:write`), Pocket Calendar (`calendar:read`, `calendar:write`), Pocket Tasks (`tasks:write`), Pocket Contacts (`contacts:read`), Pocket Documents (`documents:read`), Pocket Inventory (`items:read`) and Pocket AI inference. Events: `home.job_done`, `home.job_due`, `home.record_added`, `home.reading_added`, `home.thing_saved`, `home.warranty_ending`, each with `user_email`. `home.thing_saved` fires after a thing is created or updated (subject `thing:<id>`, payload `thing_id`, `name`, `home`, `warranty_until` as YYYY-MM-DD or ""), so Pocket Renewals can pick up a warranty as soon as it is saved.
 
 ## Settings, data
 

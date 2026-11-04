@@ -202,7 +202,7 @@ func (s *Server) coreLoop(ctx context.Context) {
 }
 
 // eventTopics are what Home publishes on the Core bus.
-var eventTopics = []string{"home.job_done", "home.job_due", "home.record_added", "home.reading_added", "home.warranty_ending"}
+var eventTopics = []string{"home.job_done", "home.job_due", "home.record_added", "home.reading_added", "home.thing_saved", "home.warranty_ending"}
 
 func (s *Server) registerWithCore(ctx context.Context) error {
 	m := core.Manifest{

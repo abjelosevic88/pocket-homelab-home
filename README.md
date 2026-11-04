@@ -67,7 +67,7 @@ Set `CORE_URL` and `CORE_REGISTRATION_KEY` and Home joins the box: people sign i
 | Pocket Inventory | link an appliance to its item on your shelves | `items:read` |
 | Pocket AI | upkeep suggestions for an exact model; the Ask button on every page | inference |
 
-Other apps can read your home (`home:read`: Pocket AI's “what is due this week?”, Pocket Day's journal) or log work for you (`home:write`: a repair booked elsewhere, a smart meter's reading). Events on the bus: `home.job_done`, `home.job_due`, `home.record_added`, `home.reading_added`, `home.warranty_ending`. Without Core every connection can be made directly with a URL and a token; the Core-only choices stay visible, greyed out.
+Other apps can read your home (`home:read`: Pocket AI's “what is due this week?”, Pocket Day's journal) or log work for you (`home:write`: a repair booked elsewhere, a smart meter's reading). Events on the bus: `home.job_done`, `home.job_due`, `home.record_added`, `home.reading_added`, `home.thing_saved`, `home.warranty_ending`. Without Core every connection can be made directly with a URL and a token; the Core-only choices stay visible, greyed out.
 
 ## Develop
 
