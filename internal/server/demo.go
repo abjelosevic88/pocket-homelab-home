@@ -132,7 +132,7 @@ func (s *Server) seedDemo(ctx context.Context, uid int64) error {
 			if j.LastDone > today {
 				j.LastDone = ""
 			}
-			j.DoneCount = 1 + rng.Intn(4)
+			j.DoneCount = 1
 		}
 		if err := s.store.CreateJob(ctx, uid, &j); err != nil {
 			return err
@@ -199,6 +199,18 @@ func (s *Server) seedDemo(ctx context.Context, uid int64) error {
 			r.JobID = &j.ID
 		}
 		if err := s.store.CreateRecord(ctx, uid, &r); err != nil {
+			return err
+		}
+	}
+
+	// what each job's history says: times done and the last date
+	for _, j := range jid {
+		recs, _, _ := s.store.ListRecords(ctx, uid, store.RecordFilter{JobID: j.ID})
+		if len(recs) == 0 {
+			continue
+		}
+		j.DoneCount, j.LastDone = len(recs), recs[0].Date
+		if err := s.store.UpdateJob(ctx, uid, j); err != nil {
 			return err
 		}
 	}
