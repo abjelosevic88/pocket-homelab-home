@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -16,6 +17,8 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 type jobInput struct {
 	HomeID    *int64  `json:"home_id"`
 	ThingID   *int64  `json:"thing_id"`
+	PlantID   *int64  `json:"plant_id"`
+	Care      *string `json:"care"`
 	ProID     *int64  `json:"pro_id"`
 	Title     *string `json:"title"`
 	Notes     *string `json:"notes"`
@@ -35,10 +38,20 @@ func (in jobInput) apply(j *store.Job, keys map[string]bool) string {
 	if keys["thing_id"] {
 		j.ThingID = in.ThingID
 	}
+	if keys["plant_id"] {
+		j.PlantID = in.PlantID
+		if j.PlantID == nil {
+			j.Care = ""
+		}
+	}
+	trimP(&j.Care, in.Care)
 	if keys["pro_id"] {
 		j.ProID = in.ProID
 	}
 	trimP(&j.Title, in.Title)
+	if j.Title == "" && j.Care != "" {
+		j.Title = careTitle(j.Care)
+	}
 	trimP(&j.Notes, in.Notes)
 	if in.EveryN != nil {
 		j.EveryN = *in.EveryN
@@ -60,6 +73,8 @@ func (in jobInput) apply(j *store.Job, keys map[string]bool) string {
 	switch {
 	case j.HomeID <= 0:
 		return "choose the home"
+	case j.Care != "" && (!validCare(j.Care) || j.PlantID == nil):
+		return "care is water, fertilise, mist, rotate, prune, pests or repot, for a plant"
 	case j.Title == "" || len(j.Title) > 160:
 		return "upkeep needs a title (up to 160 characters)"
 	case j.EveryN < 0 || j.EveryN > 1000:
@@ -80,7 +95,7 @@ func (in jobInput) apply(j *store.Job, keys map[string]bool) string {
 
 func (s *Server) handleListJobs(w http.ResponseWriter, r *http.Request) {
 	js, err := s.store.ListJobs(r.Context(), actorID(r.Context()), store.JobFilter{HomeID: int64(queryInt(r, "home_id")), ThingID: int64(queryInt(r, "thing_id")),
-		Q: strings.TrimSpace(r.URL.Query().Get("q")), All: queryBool(r, "all")})
+		PlantID: int64(queryInt(r, "plant_id")), Scope: scopeParam(r), Q: strings.TrimSpace(r.URL.Query().Get("q")), All: queryBool(r, "all")})
 	if err != nil {
 		s.fail(w, err, "upkeep")
 		return
@@ -97,7 +112,7 @@ func (s *Server) handleDue(w http.ResponseWriter, r *http.Request) {
 		days = 30
 	}
 	today := store.Today()
-	js, err := s.store.ListJobs(ctx, actorID(ctx), store.JobFilter{HomeID: int64(queryInt(r, "home_id")), Until: store.AddDays(today, days)})
+	js, err := s.store.ListJobs(ctx, actorID(ctx), store.JobFilter{HomeID: int64(queryInt(r, "home_id")), Scope: scopeParam(r), Until: store.AddDays(today, days)})
 	if err != nil {
 		s.fail(w, err, "upkeep")
 		return
@@ -139,6 +154,11 @@ func (s *Server) newJob(ctx context.Context, uid int64, in jobInput, keys map[st
 	if in.ThingID != nil && in.HomeID == nil {
 		if t, err := s.store.GetThing(ctx, uid, *in.ThingID); err == nil {
 			j.HomeID = t.HomeID
+		}
+	}
+	if in.PlantID != nil && in.HomeID == nil {
+		if p, err := s.store.GetPlant(ctx, uid, *in.PlantID); err == nil {
+			j.HomeID = p.HomeID
 		}
 	}
 	if in.HomeID == nil && j.HomeID == 0 {
@@ -247,6 +267,11 @@ func (s *Server) handleUpdateJob(w http.ResponseWriter, r *http.Request) {
 			j.HomeID = t.HomeID
 		}
 	}
+	if in.PlantID != nil && in.HomeID == nil {
+		if p, err := s.store.GetPlant(ctx, uid, *in.PlantID); err == nil {
+			j.HomeID = p.HomeID
+		}
+	}
 	if msg := in.apply(j, keys); msg != "" {
 		writeErr(w, http.StatusBadRequest, msg)
 		return
@@ -308,35 +333,53 @@ func (s *Server) handleJobDone(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid json")
 		return
 	}
+	out, code, msg := s.markDone(ctx, uid, j, in)
+	if msg != "" {
+		writeErr(w, code, msg)
+		return
+	}
+	s.syncCalendarSoon(uid)
+	writeJSON(w, http.StatusOK, out)
+}
+
+// markDone does one job: the log entry (plant care is logged as "Watered
+// Monstera", kind plant), the next due date and the events. A message comes
+// back with the HTTP status when it can't be done.
+func (s *Server) markDone(ctx context.Context, uid int64, j *store.Job, in doneInput) (map[string]any, int, string) {
 	if in.Date == "" {
 		in.Date = store.Today()
 	}
 	if !validDate(in.Date) || in.Date > store.AddDays(store.Today(), 1) {
-		writeErr(w, http.StatusBadRequest, "the date is YYYY-MM-DD, today or earlier")
-		return
+		return nil, http.StatusBadRequest, "the date is YYYY-MM-DD, today or earlier"
 	}
 	if j.FinishedAt != "" {
-		writeErr(w, http.StatusConflict, "this was done already")
-		return
+		return nil, http.StatusConflict, "this was done already"
 	}
 	var rec *store.Record
 	if in.Log == nil || *in.Log {
-		kind := firstNonEmpty(in.Kind, "maintenance")
+		kind, title := firstNonEmpty(in.Kind, "maintenance"), firstNonEmpty(strings.TrimSpace(in.Title), j.Title)
+		if j.PlantID != nil {
+			kind, title = firstNonEmpty(in.Kind, "plant"), firstNonEmpty(strings.TrimSpace(in.Title), careDoneTitle(j.Care, j.PlantName))
+		}
 		if !oneOf(kind, recordKinds) || in.Cost < 0 {
-			writeErr(w, http.StatusBadRequest, "unknown kind, or a negative cost")
-			return
+			return nil, http.StatusBadRequest, "unknown kind, or a negative cost"
 		}
 		pro := in.ProID
 		if pro == nil {
 			pro = j.ProID
 		}
-		rec = &store.Record{HomeID: j.HomeID, ThingID: j.ThingID, JobID: &j.ID, ProID: pro, Date: in.Date, Kind: kind,
-			Title: firstNonEmpty(strings.TrimSpace(in.Title), j.Title), Notes: strings.TrimSpace(in.Notes), Cost: in.Cost, Currency: j.Currency,
+		rec = &store.Record{HomeID: j.HomeID, ThingID: j.ThingID, PlantID: j.PlantID, JobID: &j.ID, ProID: pro, Date: in.Date, Kind: kind,
+			Title: title, Notes: strings.TrimSpace(in.Notes), Cost: in.Cost, Currency: j.Currency,
 			Source: firstNonEmpty(linkApp(ctx), "web"), ExternalID: strings.TrimSpace(in.ExternalID)}
 	}
 	if err := s.store.CompleteJob(ctx, uid, j, in.Date, rec); err != nil {
-		s.fail(w, err, "mark done")
-		return
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, http.StatusNotFound, "not found"
+		}
+		if errors.Is(err, store.ErrConflict) {
+			return nil, http.StatusConflict, "already exists"
+		}
+		return nil, http.StatusInternalServerError, "mark done: " + err.Error()
 	}
 	out := map[string]any{"job": j}
 	if rec != nil {
@@ -349,10 +392,17 @@ func (s *Server) handleJobDone(w http.ResponseWriter, r *http.Request) {
 	}
 	nj, _ := s.store.GetJob(ctx, uid, j.ID)
 	out["job"] = nj
-	s.publish(ctx, uid, "home.job_done", "job:"+itoa(j.ID), map[string]any{"job_id": j.ID, "title": j.Title, "thing": j.ThingName, "home": j.HomeName,
-		"date": in.Date, "next_due": nj.DueOn, "recurring": j.Recurring(), "cost": in.Cost, "currency": j.Currency})
-	s.syncCalendarSoon(uid)
-	writeJSON(w, http.StatusOK, out)
+	if j.PlantID != nil {
+		ev := map[string]any{"plant_id": *j.PlantID, "plant": j.PlantName, "care": j.Care, "job_id": j.ID, "home": j.HomeName, "date": in.Date, "next_due": nj.DueOn}
+		if rec != nil {
+			ev["record_id"] = rec.ID
+		}
+		s.publish(ctx, uid, "home.plant_cared", "plant:"+itoa(*j.PlantID), ev)
+	} else {
+		s.publish(ctx, uid, "home.job_done", "job:"+itoa(j.ID), map[string]any{"job_id": j.ID, "title": j.Title, "thing": j.ThingName, "home": j.HomeName,
+			"date": in.Date, "next_due": nj.DueOn, "recurring": j.Recurring(), "cost": in.Cost, "currency": j.Currency})
+	}
+	return out, http.StatusOK, ""
 }
 
 // handleJobSkip moves recurring upkeep on by one interval without a log entry.
@@ -429,16 +479,41 @@ func (s *Server) handleJobTask(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, err.Error())
 		return
 	}
-	title := j.Title
-	if j.ThingName != "" && !strings.Contains(strings.ToLower(title), strings.ToLower(j.ThingName)) {
-		title = j.ThingName + ": " + title
-	}
 	notes := strings.TrimSpace(j.Notes + "\n\n" + fmt.Sprintf("From Pocket Home (%s).", j.HomeName))
-	t, err := conn.client.CreateTask(cctx, title, notes, j.DueOn, s.cfg.BaseURL+"/upkeep/"+itoa(j.ID))
+	t, err := conn.client.CreateTask(cctx, jobName(*j), notes, j.DueOn, s.jobURL(*j))
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "Pocket Tasks: "+err.Error())
 		return
 	}
 	_ = s.store.SetJobTask(ctx, uid, j.ID, &t.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"task_id": t.ID, "task_url": strings.TrimRight(conn.public, "/") + "/tasks/" + itoa(t.ID), "via": conn.via})
+}
+
+// scopeParam is ?scope=house|plants ("" for everything).
+func scopeParam(r *http.Request) string {
+	if v := r.URL.Query().Get("scope"); v == "house" || v == "plants" {
+		return v
+	}
+	return ""
+}
+
+// jobName is how a job reads outside its page: "Gas boiler: Annual
+// service", "Monstera: Water".
+func jobName(j store.Job) string {
+	of := j.ThingName
+	if j.PlantName != "" {
+		of = j.PlantName
+	}
+	if of != "" && !strings.Contains(strings.ToLower(j.Title), strings.ToLower(of)) {
+		return of + ": " + j.Title
+	}
+	return j.Title
+}
+
+// jobURL is the job's page: the plant's for plant care.
+func (s *Server) jobURL(j store.Job) string {
+	if j.PlantID != nil {
+		return s.cfg.BaseURL + "/plants/" + itoa(*j.PlantID)
+	}
+	return s.cfg.BaseURL + "/upkeep/" + itoa(j.ID)
 }

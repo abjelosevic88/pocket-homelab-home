@@ -15,18 +15,19 @@ import (
 // ---------- Pocket Calendar: upkeep due dates as all-day events ----------
 //
 // With "Show upkeep on my calendar" on, every open job has one all-day event
-// on its due date in the person's Pocket Calendar. A job remembers what its
+// on its due date in the person's Pocket Calendar (plant care too, unless
+// "Plant care on the calendar" is off). A job remembers what its
 // event shows (cal_synced); any change clears that and the next sync (right
 // after the change, and every ten minutes) moves the event. Paused, finished
 // and deleted jobs lose theirs. Calendar lets an app change only the events
 // it created, so the person's own events are never touched.
 
 func calendarText(j store.Job) (title, desc string) {
-	title = j.Title
-	if j.ThingName != "" && !strings.Contains(strings.ToLower(title), strings.ToLower(j.ThingName)) {
-		title = j.ThingName + ": " + title
-	}
+	title = jobName(j)
 	desc = "Upkeep in " + j.HomeName + " (Pocket Home)."
+	if j.PlantID != nil {
+		desc = "Plant care in " + j.HomeName + " (Pocket Home)."
+	}
 	if j.Recurring() {
 		desc += fmt.Sprintf(" Every %d %s.", j.EveryN, j.EveryUnit+plural(j.EveryN))
 	}
@@ -85,7 +86,7 @@ func (s *Server) syncCalendar(ctx context.Context, uid int64) (map[string]int, e
 	n := map[string]int{"created": 0, "moved": 0, "removed": 0, "failed": 0}
 	var work []store.Job
 	for _, j := range jobs {
-		live := st.CalendarSync && j.FinishedAt == "" && !j.Paused
+		live := st.CalendarSync && j.FinishedAt == "" && !j.Paused && (j.PlantID == nil || st.CalendarPlants)
 		if (live && j.CalSynced != syncedKey(j, st.CalendarID)) || (!live && j.CalEventID != nil) {
 			work = append(work, j)
 		}
@@ -98,7 +99,7 @@ func (s *Server) syncCalendar(ctx context.Context, uid int64) (map[string]int, e
 		return n, err
 	}
 	for _, j := range work {
-		live := st.CalendarSync && j.FinishedAt == "" && !j.Paused
+		live := st.CalendarSync && j.FinishedAt == "" && !j.Paused && (j.PlantID == nil || st.CalendarPlants)
 		if !live {
 			if err := conn.client.DeleteEvent(ctx, *j.CalEventID); err != nil {
 				n["failed"]++
@@ -109,7 +110,7 @@ func (s *Server) syncCalendar(ctx context.Context, uid int64) (map[string]int, e
 			continue
 		}
 		title, desc := calendarText(j)
-		ev := pocket.Event{CalendarID: st.CalendarID, Title: title, Description: desc, URL: s.cfg.BaseURL + "/upkeep/" + itoa(j.ID), Date: j.DueOn}
+		ev := pocket.Event{CalendarID: st.CalendarID, Title: title, Description: desc, URL: s.jobURL(j), Date: j.DueOn}
 		if j.CalEventID != nil {
 			err := conn.client.UpdateEvent(ctx, *j.CalEventID, ev)
 			if err == nil {

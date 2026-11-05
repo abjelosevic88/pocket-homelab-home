@@ -34,13 +34,30 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 			attention = append(attention, j)
 			counts[j.Status]++
 		default:
+			// watering every few days would crowd out the house: only
+			// plant care that comes round less than monthly is "coming up"
+			if j.PlantID != nil && intervalDays(j) <= 31 {
+				continue
+			}
 			upcoming = append(upcoming, j)
 		}
 	}
 	if len(upcoming) > 8 {
 		upcoming = upcoming[:8]
 	}
-	recent, _, _ := s.store.ListRecords(ctx, uid, store.RecordFilter{HomeID: home, Limit: 6})
+	recent, _, _ := s.store.ListRecords(ctx, uid, store.RecordFilter{HomeID: home, Scope: "house", Limit: 6})
+	plants, _ := s.store.ListPlants(ctx, uid, store.PlantFilter{HomeID: home})
+	plantView := map[string]int{"count": len(plants), "needs_care": 0, "water_due": 0}
+	for _, p := range plants {
+		if p.Status == store.StatusOverdue || p.Status == store.StatusDue {
+			plantView["needs_care"]++
+		}
+		for _, c := range p.Care {
+			if c.Care == "water" && (c.Status == store.StatusOverdue || c.Status == store.StatusDue) {
+				plantView["water_due"]++
+			}
+		}
+	}
 	things, _ := s.store.ListThings(ctx, uid, store.ThingFilter{HomeID: home})
 	warranties := []map[string]any{}
 	for _, t := range things {
@@ -63,7 +80,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	spentYear, _ := s.store.Spending(ctx, uid, home, "year", yearFrom, today)
 	lastYear, _ := s.store.Spending(ctx, uid, home, "year", store.AddDays(yearFrom, -365)[:4]+"-01-01", store.AddDays(today, -365))
 	writeJSON(w, http.StatusOK, map[string]any{"today": today, "homes": homes, "counts": counts, "attention": attention, "upcoming": upcoming, "recent": recent,
-		"warranties": warranties, "meters": meterViews, "things": len(things), "spent_year": spentYear, "spent_last_year_to_date": lastYear})
+		"warranties": warranties, "meters": meterViews, "things": len(things), "plants": plantView, "spent_year": spentYear, "spent_last_year_to_date": lastYear})
 }
 
 // handleDay is one day in the home: what was done and read — what Pocket
@@ -98,10 +115,41 @@ func (s *Server) handleDay(w http.ResponseWriter, r *http.Request) {
 			dueThat = append(dueThat, j)
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"date": date, "records": recs, "readings": readings, "due": dueThat})
+	// plant care that day, by kind: "Watered: Monstera, Pothos"
+	care := []map[string]any{}
+	at := map[string]int{}
+	for _, rc := range recs {
+		if rc.PlantID == nil || rc.Kind != "plant" {
+			continue
+		}
+		c := ""
+		if rc.JobID != nil {
+			if j, err := s.store.GetJob(ctx, uid, *rc.JobID); err == nil {
+				c = j.Care
+			}
+		}
+		i, ok := at[c]
+		if !ok {
+			i = len(care)
+			at[c] = i
+			label := "Looked after"
+			if n, ok := careNames[c]; ok {
+				label = n[1]
+			}
+			care = append(care, map[string]any{"care": c, "label": label, "plants": []string{}, "plant_ids": []int64{}})
+		}
+		care[i]["plants"] = append(care[i]["plants"].([]string), rc.PlantName)
+		care[i]["plant_ids"] = append(care[i]["plant_ids"].([]int64), *rc.PlantID)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"date": date, "records": recs, "readings": readings, "due": dueThat, "plant_care": care})
 }
 
-// handleSearch looks through homes, things, upkeep, the log, pros and meters.
+// intervalDays is about how many days a job comes round in (0 = once).
+func intervalDays(j store.Job) int {
+	return map[string]int{"day": 1, "week": 7, "month": 30, "year": 365}[j.EveryUnit] * j.EveryN
+}
+
+// handleSearch looks through homes, things, plants, upkeep, the log, pros and meters.
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := actorID(ctx)
@@ -123,6 +171,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	things, _ := s.store.ListThings(ctx, uid, store.ThingFilter{Q: q, Archived: true})
+	plants, _ := s.store.ListPlants(ctx, uid, store.PlantFilter{Q: q, Archived: true})
 	jobs, _ := s.store.ListJobs(ctx, uid, store.JobFilter{Q: q})
 	recs, _, _ := s.store.ListRecords(ctx, uid, store.RecordFilter{Q: q, Limit: limit})
 	pros, _ := s.store.ListPros(ctx, uid, q)
@@ -145,6 +194,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if pros == nil {
 		pros = []store.Pro{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"query": q, "homes": homes[:cut(len(homes))], "things": things[:cut(len(things))], "jobs": jobs[:cut(len(jobs))],
+	writeJSON(w, http.StatusOK, map[string]any{"query": q, "homes": homes[:cut(len(homes))], "things": things[:cut(len(things))], "plants": plants[:cut(len(plants))], "jobs": jobs[:cut(len(jobs))],
 		"records": recs, "pros": pros[:cut(len(pros))], "meters": meters[:cut(len(meters))]})
 }

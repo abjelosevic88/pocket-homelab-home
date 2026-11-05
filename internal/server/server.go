@@ -202,12 +202,13 @@ func (s *Server) coreLoop(ctx context.Context) {
 }
 
 // eventTopics are what Home publishes on the Core bus.
-var eventTopics = []string{"home.job_done", "home.job_due", "home.record_added", "home.reading_added", "home.thing_saved", "home.warranty_ending"}
+var eventTopics = []string{"home.job_done", "home.job_due", "home.record_added", "home.reading_added", "home.thing_saved", "home.warranty_ending",
+	"home.plant_saved", "home.plant_cared", "home.plant_care_due"}
 
 func (s *Server) registerWithCore(ctx context.Context) error {
 	m := core.Manifest{
 		Slug: "home", Name: "Pocket Home",
-		Description: "Look after your home: appliances and systems with their manuals and warranties, upkeep that comes back (boiler service, filters, smoke alarms) with reminders before it is due, a log of repairs and what they cost, meter readings with monthly usage, and the people who work on the house.",
+		Description: "Look after your home: appliances and systems with their manuals and warranties, upkeep that comes back (boiler service, filters, smoke alarms) with reminders before it is due, house plants and when to water, feed and repot them, a log of repairs and what they cost, meter readings with monthly usage, and the people who work on the house.",
 		Icon:        "/favicon.svg", Version: Version,
 		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "HOME",
 		Publishes: eventTopics,

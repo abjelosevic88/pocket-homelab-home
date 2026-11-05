@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ func (s *Server) dailyCheck(ctx context.Context, uid int64, st store.Settings, n
 	{
 		jobs, _ := s.store.ActiveJobs(ctx, uid)
 		monday := now.Weekday() == time.Monday
+		var plantLines plantDue
 		for _, j := range jobs {
 			if j.Paused || levelRank[j.Status] == 0 {
 				continue
@@ -56,6 +58,17 @@ func (s *Server) dailyCheck(ctx context.Context, uid int64, st store.Settings, n
 				continue
 			}
 			_ = s.store.SetJobNotified(ctx, uid, j.ID, j.Status, today)
+			if j.PlantID != nil {
+				// plant care: no "soon" pushes, and one line per kind of care
+				if rose && j.Status != store.StatusSoon {
+					s.publish(ctx, uid, "home.plant_care_due", "plant:"+itoa(*j.PlantID), map[string]any{"plant_id": *j.PlantID, "plant": j.PlantName, "care": j.Care,
+						"job_id": j.ID, "home": j.HomeName, "due_on": j.DueOn, "status": j.Status, "days_left": j.DaysLeft})
+				}
+				if st.NotifyPlants && j.Status != store.StatusSoon {
+					plantLines.add(j)
+				}
+				continue
+			}
 			if rose && j.Status != store.StatusSoon {
 				s.publish(ctx, uid, "home.job_due", "job:"+itoa(j.ID), map[string]any{"job_id": j.ID, "title": j.Title, "thing": j.ThingName, "home": j.HomeName,
 					"due_on": j.DueOn, "status": j.Status, "days_left": j.DaysLeft})
@@ -63,10 +76,7 @@ func (s *Server) dailyCheck(ctx context.Context, uid int64, st store.Settings, n
 			if !st.NotifyUpkeep {
 				continue
 			}
-			name := j.Title
-			if j.ThingName != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(j.ThingName)) {
-				name = j.ThingName + ": " + name
-			}
+			name := jobName(j)
 			switch j.Status {
 			case store.StatusOverdue:
 				lines = append(lines, fmt.Sprintf("• %s — overdue by %d %s", name, -j.DaysLeft, dayWord(-j.DaysLeft)))
@@ -77,6 +87,7 @@ func (s *Server) dailyCheck(ctx context.Context, uid int64, st store.Settings, n
 				lines = append(lines, fmt.Sprintf("• %s — due in %d %s", name, j.DaysLeft, dayWord(j.DaysLeft)))
 			}
 		}
+		lines = append(lines, plantLines.lines()...)
 	}
 	things, _ := s.store.ListThings(ctx, uid, store.ThingFilter{})
 	for _, t := range things {
@@ -118,6 +129,46 @@ func (s *Server) dailyCheck(ctx context.Context, uid int64, st store.Settings, n
 	return body, true
 }
 
+// plantDue collects plant care for the daily message: "• Water today:
+// Monstera, Pothos" and "• Water — overdue: Basil".
+type plantDue struct {
+	order []string
+	names map[string][]string
+}
+
+func (p *plantDue) add(j store.Job) {
+	if p.names == nil {
+		p.names = map[string][]string{}
+	}
+	k := j.Care + "|" + j.Status
+	if _, ok := p.names[k]; !ok {
+		p.order = append(p.order, k)
+	}
+	p.names[k] = append(p.names[k], j.PlantName)
+}
+
+func (p *plantDue) lines() []string {
+	sort.SliceStable(p.order, func(a, b int) bool {
+		ca, sa, _ := strings.Cut(p.order[a], "|")
+		cb, sb, _ := strings.Cut(p.order[b], "|")
+		if ca != cb {
+			return store.CareRank(ca) < store.CareRank(cb)
+		}
+		return sa > sb // overdue before due
+	})
+	var out []string
+	for _, k := range p.order {
+		care, status, _ := strings.Cut(k, "|")
+		names := strings.Join(p.names[k], ", ")
+		if status == store.StatusOverdue {
+			out = append(out, "• "+careTitle(care)+" — overdue: "+names)
+		} else {
+			out = append(out, "• "+careTitle(care)+" today: "+names)
+		}
+	}
+	return out
+}
+
 func dayWord(n int) string {
 	if n == 1 {
 		return "day"
@@ -138,7 +189,7 @@ func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	st, _ := s.store.GetSettings(ctx, actorID(ctx))
 	n := notify.New(st.NotifyURL, st.NotifyFormat)
-	if err := n.Send(ctx, notify.Message{Title: "Pocket Home", Body: "Notifications work. Upkeep that falls due, warranties that end and meter readings will arrive here.", Priority: "info", Tags: []string{"house"}}); err != nil {
+	if err := n.Send(ctx, notify.Message{Title: "Pocket Home", Body: "Notifications work. Upkeep that falls due, plants to water, warranties that end and meter readings will arrive here.", Priority: "info", Tags: []string{"house"}}); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

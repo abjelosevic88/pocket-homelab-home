@@ -72,6 +72,16 @@ func (s *Server) Router() http.Handler {
 			r.Delete("/things/{id}", s.handleDeleteThing)
 			r.Post("/things/{id}/suggest", s.handleSuggest)
 			r.Get("/rooms", s.handleRooms)
+
+			// plants
+			r.Get("/plants", s.handleListPlants)
+			r.Post("/plants", s.handleCreatePlant)
+			r.Get("/plants/templates", s.handlePlantTemplates)
+			r.Post("/plants/done", s.handlePlantsDone)
+			r.Get("/plants/{id}", s.handleGetPlant)
+			r.Put("/plants/{id}", s.handleUpdatePlant)
+			r.Delete("/plants/{id}", s.handleDeletePlant)
+			r.Post("/plants/{id}/done", s.handlePlantDone)
 			r.Get("/templates", s.handleTemplates)
 
 			// upkeep

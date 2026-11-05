@@ -25,6 +25,7 @@ func remarshal(in, out any) error {
 type recordInput struct {
 	HomeID     *int64  `json:"home_id"`
 	ThingID    *int64  `json:"thing_id"`
+	PlantID    *int64  `json:"plant_id"`
 	JobID      *int64  `json:"job_id"`
 	ProID      *int64  `json:"pro_id"`
 	Date       *string `json:"date"`
@@ -46,6 +47,9 @@ func (in recordInput) apply(r *store.Record, keys map[string]bool) string {
 	}
 	if keys["thing_id"] {
 		r.ThingID = in.ThingID
+	}
+	if keys["plant_id"] {
+		r.PlantID = in.PlantID
 	}
 	if keys["job_id"] {
 		r.JobID = in.JobID
@@ -71,7 +75,7 @@ func (in recordInput) apply(r *store.Record, keys map[string]bool) string {
 	case r.Date == "" || !validDate(r.Date):
 		return "the date is YYYY-MM-DD"
 	case !oneOf(r.Kind, recordKinds):
-		return "kind is maintenance, repair, improvement, inspection, purchase or other"
+		return "kind is maintenance, repair, improvement, inspection, purchase, plant or other"
 	case r.Cost < 0 || r.Cost > 1e12:
 		return "the cost looks wrong"
 	}
@@ -83,7 +87,7 @@ func recordPayload(r *store.Record) map[string]any {
 		return map[string]any{}
 	}
 	return map[string]any{"record_id": r.ID, "date": r.Date, "kind": r.Kind, "title": r.Title, "thing": r.ThingName, "home": r.HomeName, "pro": r.ProName,
-		"cost": r.Cost, "currency": r.Currency, "job_id": r.JobID}
+		"cost": r.Cost, "currency": r.Currency, "job_id": r.JobID, "plant_id": r.PlantID, "plant": r.PlantName}
 }
 
 func (s *Server) handleListRecords(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +102,7 @@ func (s *Server) handleListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	recs, total, err := s.store.ListRecords(r.Context(), actorID(r.Context()), store.RecordFilter{HomeID: int64(queryInt(r, "home_id")), ThingID: int64(queryInt(r, "thing_id")),
-		ProID: int64(queryInt(r, "pro_id")), Kind: q.Get("kind"), From: from, To: to, Q: strings.TrimSpace(q.Get("q")), Limit: limit, Offset: queryInt(r, "offset")})
+		PlantID: int64(queryInt(r, "plant_id")), Scope: scopeParam(r), ProID: int64(queryInt(r, "pro_id")), Kind: q.Get("kind"), From: from, To: to, Q: strings.TrimSpace(q.Get("q")), Limit: limit, Offset: queryInt(r, "offset")})
 	if err != nil {
 		s.fail(w, err, "log")
 		return
@@ -144,6 +148,11 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	if in.ThingID != nil && in.HomeID == nil {
 		if t, err := s.store.GetThing(ctx, uid, *in.ThingID); err == nil {
 			rec.HomeID = t.HomeID
+		}
+	}
+	if in.PlantID != nil && in.HomeID == nil && rec.HomeID == 0 {
+		if p, err := s.store.GetPlant(ctx, uid, *in.PlantID); err == nil {
+			rec.HomeID = p.HomeID
 		}
 	}
 	if in.JobID != nil && in.HomeID == nil && rec.HomeID == 0 {

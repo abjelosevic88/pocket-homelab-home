@@ -14,7 +14,7 @@ import (
 var (
 	homeKinds     = []string{"house", "apartment", "cottage", "other"}
 	thingKinds    = []string{"heating", "cooling", "water", "electrical", "appliance", "kitchen", "structure", "outdoor", "safety", "other"}
-	recordKinds   = []string{"maintenance", "repair", "improvement", "inspection", "purchase", "other"}
+	recordKinds   = []string{"maintenance", "repair", "improvement", "inspection", "purchase", "plant", "other"}
 	meterKinds    = []string{"electricity", "water", "gas", "heating", "solar", "oil", "other"}
 	attachKinds   = []string{"document", "url"}
 	meterUnitsFor = map[string]string{"electricity": "kWh", "water": "m³", "gas": "m³", "heating": "kWh", "solar": "kWh", "oil": "L", "other": ""}
@@ -596,7 +596,7 @@ func (s *Server) handleCreateAttachment(w http.ResponseWriter, r *http.Request) 
 	}
 	a.Title = strings.TrimSpace(a.Title)
 	if !store.ValidOwnerKind(a.OwnerKind) || !oneOf(a.Kind, attachKinds) {
-		writeErr(w, http.StatusBadRequest, "attach to a home, a thing or a log entry; a document or a link")
+		writeErr(w, http.StatusBadRequest, "attach to a home, a thing, a plant or a log entry; a document or a link")
 		return
 	}
 	if a.Kind == "url" {

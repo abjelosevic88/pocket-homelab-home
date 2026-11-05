@@ -147,6 +147,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	boolIn("notify_upkeep", &cur.NotifyUpkeep, in.NotifyUpkeep)
 	boolIn("notify_warranty", &cur.NotifyWarranty, in.NotifyWarranty)
 	boolIn("notify_meters", &cur.NotifyMeters, in.NotifyMeters)
+	boolIn("notify_plants", &cur.NotifyPlants, in.NotifyPlants)
 	text("notify_url", &cur.NotifyURL, in.NotifyURL)
 	if keys["notify_format"] && in.NotifyFormat != "" {
 		cur.NotifyFormat = in.NotifyFormat
@@ -154,8 +155,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	boolIn("money_book", &cur.MoneyBook, in.MoneyBook)
 	idIn("money_account_id", &cur.MoneyAccountID, in.MoneyAccountID)
 	idIn("money_category_id", &cur.MoneyCategoryID, in.MoneyCategoryID)
-	calWas := cur.CalendarSync
+	calWas, plantsWas := cur.CalendarSync, cur.CalendarPlants
 	boolIn("calendar_sync", &cur.CalendarSync, in.CalendarSync)
+	boolIn("calendar_plants", &cur.CalendarPlants, in.CalendarPlants)
 	idIn("calendar_id", &cur.CalendarID, in.CalendarID)
 	// each Pocket app: mode, URL, token, public URL
 	inMap := map[string]string{}
@@ -206,7 +208,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if cur.CalendarSync != calWas || keys["calendar_id"] || keys["calendar_mode"] {
+	if cur.CalendarSync != calWas || cur.CalendarPlants != plantsWas || keys["calendar_id"] || keys["calendar_mode"] {
 		s.syncCalendarSoon(me.ID)
 	}
 	writeJSON(w, http.StatusOK, s.publicSettings(r.Context(), me, cur))
@@ -358,6 +360,7 @@ type exportDoc struct {
 	Exported    string             `json:"exported_at"`
 	Homes       []store.Home       `json:"homes"`
 	Things      []store.Thing      `json:"things"`
+	Plants      []store.Plant      `json:"plants"`
 	Pros        []store.Pro        `json:"pros"`
 	Jobs        []store.Job        `json:"jobs"`
 	Records     []store.Record     `json:"records"`
@@ -370,6 +373,7 @@ func (s *Server) export(ctx context.Context, uid int64) exportDoc {
 	doc := exportDoc{App: "pocket-home", Version: Version, Exported: store.Now(), Readings: []store.Reading{}}
 	doc.Homes, _ = s.store.ListHomes(ctx, uid)
 	doc.Things, _ = s.store.ListThings(ctx, uid, store.ThingFilter{Archived: true})
+	doc.Plants, _ = s.store.ListPlants(ctx, uid, store.PlantFilter{Archived: true})
 	doc.Pros, _ = s.store.ListPros(ctx, uid, "")
 	doc.Jobs, _ = s.store.ListJobs(ctx, uid, store.JobFilter{All: true})
 	doc.Records, _, _ = s.store.ListRecords(ctx, uid, store.RecordFilter{})
@@ -398,14 +402,14 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="pocket-home-log.csv"`)
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"date", "home", "thing", "kind", "title", "cost", "currency", "pro", "upkeep", "notes", "money_tx_id"})
+	_ = cw.Write([]string{"date", "home", "thing", "kind", "title", "cost", "currency", "pro", "upkeep", "notes", "money_tx_id", "plant"})
 	for i := len(recs) - 1; i >= 0; i-- {
 		rc := recs[i]
 		tx := ""
 		if rc.MoneyTxID != nil {
 			tx = strconv.FormatInt(*rc.MoneyTxID, 10)
 		}
-		_ = cw.Write([]string{rc.Date, rc.HomeName, rc.ThingName, rc.Kind, rc.Title, strconv.FormatFloat(float64(rc.Cost)/100, 'f', 2, 64), rc.Currency, rc.ProName, rc.JobTitle, rc.Notes, tx})
+		_ = cw.Write([]string{rc.Date, rc.HomeName, rc.ThingName, rc.Kind, rc.Title, strconv.FormatFloat(float64(rc.Cost)/100, 'f', 2, 64), rc.Currency, rc.ProName, rc.JobTitle, rc.Notes, tx, rc.PlantName})
 	}
 	cw.Flush()
 }
@@ -490,8 +494,35 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 			counts["things"]++
 		}
 	}
+	for _, p := range doc.Plants {
+		if id, ok := idOf("plant", p.ID); ok && exists("plants", id) {
+			continue
+		}
+		hid := mapID("home", "homes", &p.HomeID)
+		if hid == nil {
+			counts["skipped"]++
+			continue
+		}
+		old := p.ID
+		p.HomeID = *hid
+		if !oneOf(p.Kind, plantKinds) {
+			p.Kind = "other"
+		}
+		if !oneOf(p.Light, plantLights) {
+			p.Light = "medium"
+		}
+		if err := s.store.CreatePlant(ctx, uid, &p); err == nil {
+			remember("plant", old, p.ID)
+			counts["plants"]++
+		}
+	}
 	for _, j := range doc.Jobs {
 		if id, ok := idOf("job", j.ID); ok && exists("jobs", id) {
+			continue
+		}
+		if j.PlantID != nil && mapID("plant", "plants", j.PlantID) == nil {
+			// care of a plant that did not come over
+			counts["skipped"]++
 			continue
 		}
 		hid := mapID("home", "homes", &j.HomeID)
@@ -500,7 +531,7 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		old := j.ID
-		j.HomeID, j.ThingID, j.ProID, j.Source = *hid, mapID("thing", "things", j.ThingID), mapID("pro", "pros", j.ProID), "import"
+		j.HomeID, j.ThingID, j.PlantID, j.ProID, j.Source = *hid, mapID("thing", "things", j.ThingID), mapID("plant", "plants", j.PlantID), mapID("pro", "pros", j.ProID), "import"
 		if err := s.store.CreateJob(ctx, uid, &j); err == nil {
 			if j.FinishedAt != "" {
 				_ = s.store.UpdateJob(ctx, uid, &j)
@@ -519,7 +550,7 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		old := rc.ID
-		rc.HomeID, rc.ThingID, rc.ProID, rc.JobID, rc.Source = *hid, mapID("thing", "things", rc.ThingID), mapID("pro", "pros", rc.ProID), mapID("job", "jobs", rc.JobID), "import"
+		rc.HomeID, rc.ThingID, rc.PlantID, rc.ProID, rc.JobID, rc.Source = *hid, mapID("thing", "things", rc.ThingID), mapID("plant", "plants", rc.PlantID), mapID("pro", "pros", rc.ProID), mapID("job", "jobs", rc.JobID), "import"
 		if rc.ExternalID == "" {
 			rc.ExternalID = fmt.Sprintf("import:%d", old)
 		}
@@ -563,7 +594,7 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 		if id, ok := idOf("attachment", a.ID); ok && exists("attachments", id) {
 			continue
 		}
-		tbl := map[string]string{"home": "homes", "thing": "things", "record": "records"}[a.OwnerKind]
+		tbl := map[string]string{"home": "homes", "thing": "things", "plant": "plants", "record": "records"}[a.OwnerKind]
 		if tbl == "" {
 			continue
 		}

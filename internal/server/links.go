@@ -17,8 +17,8 @@ import (
 // in linkRoutes stays closed to it (403).
 
 var linkOffers = []core.Offer{
-	{Scope: "home:read", Name: "See your home", Description: "Read your homes, appliances, upkeep and when it is due, the log of what was done and what it cost, and meter readings — for your journal, calendar, dashboards and Pocket AI."},
-	{Scope: "home:write", Name: "Log upkeep", Description: "Add log entries and meter readings and mark upkeep done (a repair booked elsewhere, a smart meter). It may change only what that app logged itself."},
+	{Scope: "home:read", Name: "See your home", Description: "Read your homes, appliances, house plants, upkeep and plant care and when it is due, the log of what was done and what it cost, and meter readings — for your journal, calendar, dashboards and Pocket AI."},
+	{Scope: "home:write", Name: "Log upkeep", Description: "Add log entries and meter readings, mark upkeep done and mark plants watered or cared for (a repair booked elsewhere, a smart meter). It may change only what that app logged itself."},
 }
 
 type linkRoute struct {
@@ -29,13 +29,14 @@ type linkRoute struct {
 
 var linkRoutes = []linkRoute{
 	{"GET", regexp.MustCompile(`^/api/v1/auth/me$`), ""},
-	{"GET", regexp.MustCompile(`^/api/v1/(overview|due|homes|things|jobs|records|meters|pros|search|spending|day/\d{4}-\d{2}-\d{2})$`), "home:read"},
-	{"GET", regexp.MustCompile(`^/api/v1/(homes|things|jobs|records|meters|pros)/\d+$`), "home:read"},
+	{"GET", regexp.MustCompile(`^/api/v1/(overview|due|homes|things|plants|plants/templates|jobs|records|meters|pros|search|spending|day/\d{4}-\d{2}-\d{2})$`), "home:read"},
+	{"GET", regexp.MustCompile(`^/api/v1/(homes|things|plants|jobs|records|meters|pros)/\d+$`), "home:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/meters/\d+/(readings|usage)$`), "home:read"},
 	{"POST", regexp.MustCompile(`^/api/v1/records$`), "home:write"},
 	{"PUT DELETE", regexp.MustCompile(`^/api/v1/records/\d+$`), "home:write"},
 	{"POST", regexp.MustCompile(`^/api/v1/meters/\d+/readings$`), "home:write"},
 	{"POST", regexp.MustCompile(`^/api/v1/jobs/\d+/done$`), "home:write"},
+	{"POST", regexp.MustCompile(`^/api/v1/plants/(\d+/)?done$`), "home:write"},
 }
 
 var errLinkScope = errors.New("outside the link's scope")
