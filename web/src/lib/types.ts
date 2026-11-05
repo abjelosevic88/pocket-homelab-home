@@ -11,10 +11,10 @@ export type Settings = ConnFields & {
   core_configured: boolean
   core_registered?: boolean
   title: string; date_format: string; time_format: string; week_start: number; currency: string; area_unit: 'm2' | 'ft2'
-  notify_upkeep: boolean; notify_warranty: boolean; notify_meters: boolean; notify_hour: number
+  notify_upkeep: boolean; notify_warranty: boolean; notify_meters: boolean; notify_plants: boolean; notify_hour: number
   notify_url: string; notify_format: string; notify_configured: boolean
   money_book: boolean; money_account_id: number; money_category_id: number
-  calendar_sync: boolean; calendar_id: number
+  calendar_sync: boolean; calendar_id: number; calendar_plants: boolean
   ai_provider: 'auto' | 'pocket' | 'openai'; ai_pocket_model: string; openai_api_key: string; openai_model: string; openai_base_url: string
   setup_complete: boolean; base_url: string
 }
@@ -40,16 +40,26 @@ export interface Pro {
 export type JobStatus = 'overdue' | 'due' | 'soon' | 'ok' | 'paused' | 'done'
 export type Unit = 'day' | 'week' | 'month' | 'year'
 export interface Job {
-  id: number; home_id: number; thing_id: number | null; pro_id: number | null; title: string; notes: string; every_n: number; every_unit: Unit
+  id: number; home_id: number; thing_id: number | null; plant_id: number | null; care: CareKind | ''; pro_id: number | null; title: string; notes: string; every_n: number; every_unit: Unit
   due_on: string; soon_days: number; est_cost: number | null; last_done: string; done_count: number; paused: boolean; finished_at: string
   cal_event_id: number | null; task_id: number | null; source: string; created_at: string; updated_at: string
-  home_name: string; thing_name: string; pro_name: string; currency: string; status: JobStatus; days_left: number
+  home_name: string; thing_name: string; plant_name: string; pro_name: string; currency: string; status: JobStatus; days_left: number
 }
 
+export type CareKind = 'water' | 'fertilise' | 'mist' | 'rotate' | 'prune' | 'pests' | 'repot'
+export type PlantKind = 'foliage' | 'flowering' | 'succulent' | 'cactus' | 'herb' | 'fern' | 'orchid' | 'palm' | 'other'
+export type Light = 'low' | 'medium' | 'bright' | 'direct'
+export interface Plant {
+  id: number; home_id: number; name: string; species: string; kind: PlantKind; room: string; light: Light; acquired_on: string; pot: string; notes: string
+  archived: boolean; gone_reason: '' | 'died' | 'given' | 'other'; gone_on: string; created_at: string; updated_at: string
+  home_name: string; care: Job[]; status: JobStatus; next_care: string; last_watered: string
+}
+export interface CareSuggestion { care: CareKind; title: string; every_n: number; every_unit: Unit; soon_days: number; notes: string }
+
 export interface HomeRecord {
-  id: number; home_id: number; thing_id: number | null; job_id: number | null; pro_id: number | null; date: string; kind: string; title: string; notes: string
+  id: number; home_id: number; thing_id: number | null; plant_id: number | null; job_id: number | null; pro_id: number | null; date: string; kind: string; title: string; notes: string
   cost: number; currency: string; money_tx_id: number | null; money_user_id: number | null; source: string; external_id: string; created_at: string; updated_at: string
-  home_name: string; thing_name: string; pro_name: string; job_title: string
+  home_name: string; thing_name: string; plant_name: string; pro_name: string; job_title: string
 }
 
 export interface Reading { id: number; meter_id: number; read_on: string; value: number; reset: boolean; note: string; source: string; created_at: string; usage: number | null; days: number }
@@ -60,7 +70,7 @@ export interface Meter {
 export interface UsageMonth { month: string; usage: number; cost: number | null; estimated: boolean }
 export interface UsageSummary { unit: string; per_day?: number; per_year?: number; cost_per_year?: number; per_day_before?: number }
 
-export interface Attachment { id: number; owner_kind: 'home' | 'thing' | 'record'; owner_id: number; kind: 'document' | 'url'; ref: string; title: string; url: string; created_at: string; open_url: string }
+export interface Attachment { id: number; owner_kind: 'home' | 'thing' | 'plant' | 'record'; owner_id: number; kind: 'document' | 'url'; ref: string; title: string; url: string; created_at: string; open_url: string }
 
 export interface Suggestion { title: string; every_n: number; every_unit: Unit; soon_days: number; notes: string }
 
@@ -70,7 +80,7 @@ export interface Overview {
   today: string; homes: Home[]; counts: { overdue: number; due: number; soon: number }; attention: Job[]; upcoming: Job[]; recent: HomeRecord[]
   warranties: { thing_id: number; name: string; until: string; state: 'ending' | 'ended'; days: number }[]
   meters: { id: number; name: string; kind: string; unit: string; home_name: string; last: Reading | null; readings: number; needs_reading: boolean }[]
-  things: number; spent_year: SpendRow[]; spent_last_year_to_date: SpendRow[]
+  things: number; plants: { count: number; needs_care: number; water_due: number }; spent_year: SpendRow[]; spent_last_year_to_date: SpendRow[]
 }
 
 export interface MoneyResult { ok: boolean; tx_id?: number; account?: string; url?: string; via?: string; error?: string; skipped?: boolean }

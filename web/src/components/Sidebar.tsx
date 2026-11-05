@@ -10,16 +10,19 @@ import { type Anchor, Menu, rectOf } from './ui'
 
 export function Sidebar({ onCreate, onNavigate }: { onCreate: (k: CreateKind) => void; onNavigate: () => void }) {
   const { status, settings } = useApp()
-  const { homes, things } = useData()
+  const { homes, things, plants } = useData()
   const [menu, setMenu] = useState<Anchor | null>(null)
   const title = settings?.title || status?.title || 'Pocket Home'
   const live = (homes || []).filter(h => !h.archived)
   const overdue = live.reduce((n, h) => n + h.overdue, 0)
   const soon = live.reduce((n, h) => n + h.due_soon, 0)
+  const thirsty = plants.filter(p => p.status === 'due' || p.status === 'overdue').length
+  const late = plants.some(p => p.status === 'overdue')
   const nav: { to: string; label: string; icon: string; end?: boolean; count?: string; warn?: boolean }[] = [
     { to: '/', label: 'Overview', icon: 'home', end: true },
     { to: '/upkeep', label: 'Upkeep', icon: 'wrench', count: overdue ? String(overdue) : soon ? String(soon) : undefined, warn: overdue > 0 },
     { to: '/things', label: 'Appliances', icon: 'package', count: things.length ? String(things.length) : undefined },
+    { to: '/plants', label: 'Plants', icon: 'leaf', count: thirsty ? String(thirsty) : undefined, warn: late },
     { to: '/log', label: 'Log', icon: 'note' },
     { to: '/meters', label: 'Meters', icon: 'gauge' },
     { to: '/pros', label: 'Pros', icon: 'users' },

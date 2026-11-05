@@ -24,7 +24,9 @@ export default function Log() {
   const [q, setQ] = useState('')
   const [kind, setKind] = useState('')
   const [limit, setLimit] = useState(50)
-  const { data, reload, error } = useAsync(() => api.get<{ records: HomeRecord[]; total: number }>(`${V1}/records?${new URLSearchParams({ home_id: String(home), q, kind, limit: String(limit) })}`), [home, q, kind, limit])
+  const [plantsToo, setPlantsToo] = useState(() => localStorage.getItem('phm-log-plants') === '1')
+  const scope = kind || plantsToo ? '' : 'house'
+  const { data, reload, error } = useAsync(() => api.get<{ records: HomeRecord[]; total: number }>(`${V1}/records?${new URLSearchParams({ home_id: String(home), q, kind, scope, limit: String(limit) })}`), [home, q, kind, scope, limit])
   const { data: sp, reload: reloadSp } = useAsync(() => api.get<Spending>(`${V1}/spending?months=12${home ? `&home_id=${home}` : ''}`), [home])
   useOnChange(() => { reload(); reloadSp() })
   const many = (homes || []).filter(h => !h.archived).length > 1
@@ -57,6 +59,7 @@ export default function Log() {
       <div className="row wrap filters">
         <input className="search-in" value={q} onChange={e => setQ(e.target.value)} placeholder="Find in the log…" aria-label="Find in the log" />
         <Select ariaLabel="Kind" value={kind} onChange={setKind} clearLabel="Every kind" placeholder="Every kind" options={RECORD_KINDS.map(k => ({ value: k.value, label: k.label }))} />
+        {!kind && <label className="check-row"><input type="checkbox" checked={plantsToo} onChange={e => { setPlantsToo(e.target.checked); localStorage.setItem('phm-log-plants', e.target.checked ? '1' : '') }} />Plant care too</label>}
       </div>
       {error && <div className="callout danger"><Icon name="alert" size={15} />{error}</div>}
       {!data ? <Loading /> : data.records.length === 0 ? <Empty title={q || kind ? 'Nothing matches' : 'Nothing logged yet'} icon="note" /> : (
@@ -106,7 +109,8 @@ export function RecordPage() {
         <Card title="Details">
           <dl className="set-dl">
             {r.thing_name && <div><dt>Appliance or part</dt><dd><Link to={`/things/${r.thing_id}`}>{r.thing_name}</Link></dd></div>}
-            {r.job_title && <div><dt>Upkeep</dt><dd><Link to={`/upkeep/${r.job_id}`}>{r.job_title}</Link></dd></div>}
+            {r.plant_name && <div><dt>Plant</dt><dd><Link to={`/plants/${r.plant_id}`}>{r.plant_name}</Link></dd></div>}
+            {r.job_title && <div><dt>{r.plant_id ? 'Care' : 'Upkeep'}</dt><dd><Link to={`/upkeep/${r.job_id}`}>{r.job_title}</Link></dd></div>}
             {r.pro_name && <div><dt>Who did it</dt><dd><Link to={`/pros/${r.pro_id}`}>{r.pro_name}</Link></dd></div>}
             <div><dt>Cost</dt><dd>{r.cost ? money(r.cost, r.currency) : 'Nothing'}</dd></div>
             {moneyOn && r.cost > 0 && <div><dt>Pocket Money</dt><dd>{r.money_tx_id ? (data.money_url ? <a href={data.money_url} target="_blank" rel="noreferrer">Booked <Icon name="external" size={12} /></a> : 'Booked')

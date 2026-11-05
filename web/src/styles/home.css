@@ -291,3 +291,40 @@ a.list-row:hover, .list-row:has(> a.row-main:hover) { background: var(--hover); 
   /* stacked filters: flex-basis would be the search box's height */
   .row.wrap.filters > .search-in, .row.wrap.filters > .sel { flex: 0 0 auto; max-width: none; }
 }
+
+/* plants */
+.plant-ico { --c: #3f7d3a; }
+.list-ico.plant-ico.st-ok, .detail-ico.plant-ico.st-ok, .list-ico.plant-ico.st-paused, .detail-ico.plant-ico.st-paused { background: color-mix(in srgb, var(--c) 13%, transparent); color: var(--c); }
+[data-theme="dark"] .list-ico.plant-ico.st-ok, [data-theme="dark"] .detail-ico.plant-ico.st-ok { color: color-mix(in srgb, var(--c) 55%, #fff); background: color-mix(in srgb, var(--c) 24%, transparent); }
+.is-archived .plant-ico, .detail-ico.plant-ico.st-paused { opacity: .6; }
+.tile-plants { --tile: #3f7d3a; }
+.care-line-due { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 2px; }
+.care-due { display: inline-flex; align-items: center; gap: 4px; font-weight: 550; color: var(--text-2); white-space: nowrap; }
+.care-due.st-overdue { color: var(--danger); }
+.care-due.st-due { color: color-mix(in srgb, var(--warning) 85%, var(--text)); }
+.care-due.st-ok, .care-due.st-soon { color: var(--muted); font-weight: 500; }
+.care-btn { flex-shrink: 0; min-width: 104px; justify-content: center; }
+.water-bar { align-items: center; }
+.water-bar > .icon { margin-top: 0; }
+.care-edit { display: grid; gap: 2px; }
+.care-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0; min-height: 44px; }
+.care-line .care-name { flex: 1 1 170px; font-weight: 550; gap: 8px; }
+.care-line.off .every-row { opacity: .45; }
+@media (max-width: 640px) {
+  .care-btn { min-width: 0; }
+  .plant-row > .list-ico { display: none; }
+  .care-line { flex-wrap: nowrap; gap: 8px; }
+  .care-line .care-name { flex: 1 1 auto; min-width: 0; }
+  .care-line .every-row { gap: 6px; flex-wrap: nowrap; }
+  .care-line .every-row > .muted { display: none; }
+  .care-line .num-sm { width: 54px; }
+  .care-line .every-row .sel { width: 104px; flex-basis: 104px; }
+}
+.plant-row .row-link { display: flex; flex-direction: column; min-width: 0; color: inherit; }
+.plant-row .row-link > .ellipsis { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row.plant-row:has(a.row-link:hover) { background: var(--hover); }
+.care-chip { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-weight: 550; padding: 2px 4px 2px 8px; margin: 1px 0; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; white-space: nowrap; }
+.care-chip:hover { background: var(--hover); }
+.care-chip.st-overdue { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.care-chip.st-due { color: color-mix(in srgb, var(--warning) 85%, var(--text)); border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
+.care-chip-done { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 1px 7px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); }

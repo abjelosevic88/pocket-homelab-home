@@ -3,13 +3,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
-import type { HomeRecord, Job, Meter, Pro, Thing } from '../lib/types'
+import type { HomeRecord, Job, Meter, Plant, Pro, Thing } from '../lib/types'
+import { careName } from '../lib/plants'
 import { useDebounce } from './ui'
 import { Icon } from './icons'
 
 export interface PaletteCommand { id: string; label: string; icon: string; hint?: string; keywords?: string; run: () => void }
 
-interface Found { things: Thing[]; jobs: Job[]; records: HomeRecord[]; pros: Pro[]; meters: Meter[] }
+interface Found { things: Thing[]; plants: Plant[]; jobs: Job[]; records: HomeRecord[]; pros: Pro[]; meters: Meter[] }
 
 export function CommandPalette({ onClose, commands }: { onClose: () => void; commands: PaletteCommand[] }) {
   const navigate = useNavigate()
@@ -34,11 +35,12 @@ export function CommandPalette({ onClose, commands }: { onClose: () => void; com
     const cmds = commands.filter(c => !n || hit(`${c.label} ${c.keywords || ''}`)).map(c => ({ key: c.id, group: 'Commands', icon: <Icon name={c.icon} size={16} />, label: c.label, hint: c.hint, run: c.run }))
     const f = n.length >= 2 ? found : null
     const things = (f?.things || []).map(t => ({ key: `t${t.id}`, group: 'Appliances and parts', icon: <Icon name="package" size={16} />, label: t.name, sub: [t.room, t.brand, t.model].filter(Boolean).join(' · '), run: () => navigate(`/things/${t.id}`) }))
-    const jobs = (f?.jobs || []).map(j => ({ key: `j${j.id}`, group: 'Upkeep', icon: <Icon name="wrench" size={16} />, label: j.title, sub: [j.thing_name, j.due_on].filter(Boolean).join(' · '), run: () => navigate(`/upkeep/${j.id}`) }))
+    const plants = (f?.plants || []).map(p => ({ key: `pl${p.id}`, group: 'Plants', icon: <Icon name="leaf" size={16} />, label: p.name, sub: [p.species, p.room].filter(Boolean).join(' · '), run: () => navigate(`/plants/${p.id}`) }))
+    const jobs = (f?.jobs || []).map(j => ({ key: `j${j.id}`, group: 'Upkeep', icon: <Icon name={j.plant_id ? 'leaf' : 'wrench'} size={16} />, label: careName(j), sub: [j.thing_name, j.due_on].filter(Boolean).join(' · '), run: () => navigate(j.plant_id ? `/plants/${j.plant_id}` : `/upkeep/${j.id}`) }))
     const recs = (f?.records || []).slice(0, 6).map(r => ({ key: `r${r.id}`, group: 'Log', icon: <Icon name="note" size={16} />, label: r.title, sub: [r.date, r.thing_name].filter(Boolean).join(' · '), run: () => navigate(`/log/${r.id}`) }))
     const pros = (f?.pros || []).map(x => ({ key: `p${x.id}`, group: 'Pros', icon: <Icon name="user" size={16} />, label: x.name, sub: x.trade, run: () => navigate(`/pros/${x.id}`) }))
     const meters = (f?.meters || []).map(m => ({ key: `m${m.id}`, group: 'Meters', icon: <Icon name="gauge" size={16} />, label: m.name, sub: m.home_name, run: () => navigate(`/meters/${m.id}`) }))
-    if (n) out.push(...things, ...jobs, ...recs, ...pros, ...meters, ...cmds)
+    if (n) out.push(...things, ...plants, ...jobs, ...recs, ...pros, ...meters, ...cmds)
     else out.push(...cmds)
     return out
   }, [q, found, commands, navigate])

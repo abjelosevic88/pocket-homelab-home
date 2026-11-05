@@ -13,6 +13,7 @@ import Login from './pages/Login'
 import Overview from './pages/Overview'
 import Upkeep, { JobPage } from './pages/Upkeep'
 import Things, { ThingPage } from './pages/Things'
+import Plants, { PlantPage } from './pages/Plants'
 import Log, { RecordPage } from './pages/Log'
 import Meters, { MeterPage } from './pages/Meters'
 import Pros, { ProPage } from './pages/Pros'
@@ -40,6 +41,8 @@ function App() {
         <Route path="/upkeep/:id" element={<JobPage />} />
         <Route path="/things" element={<Things />} />
         <Route path="/things/:id" element={<ThingPage />} />
+        <Route path="/plants" element={<Plants />} />
+        <Route path="/plants/:id" element={<PlantPage />} />
         <Route path="/log" element={<Log />} />
         <Route path="/log/:id" element={<RecordPage />} />
         <Route path="/meters" element={<Meters />} />

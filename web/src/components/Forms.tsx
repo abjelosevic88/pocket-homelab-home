@@ -14,11 +14,11 @@ import { Icon } from './icons'
 const opt = (id: number | null | undefined) => id ? String(id) : ''
 const idOf = (v: string) => v ? Number(v) : null
 
-function Actions({ onClose, busy, label, danger }: { onClose: () => void; busy: boolean; label: string; danger?: React.ReactNode }) {
+export function Actions({ onClose, busy, label, danger }: { onClose: () => void; busy: boolean; label: string; danger?: React.ReactNode }) {
   return <div className="form-actions">{danger}<span className="grow" /><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>{busy ? 'Saving…' : label}</button></div>
 }
 
-function HomeSelect({ value, onChange }: { value: number; onChange: (id: number) => void }) {
+export function HomeSelect({ value, onChange }: { value: number; onChange: (id: number) => void }) {
   const { homes } = useData()
   const first = homes?.find(h => !h.archived)?.id
   useEffect(() => { if (!value && first) onChange(first) }, [value, first]) // eslint-disable-line react-hooks/exhaustive-deps

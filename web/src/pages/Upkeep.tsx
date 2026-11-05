@@ -7,7 +7,7 @@ import { announceChange, useData, useOnChange } from '../lib/data'
 import { fmtDate } from '../lib/format'
 import { STATUS_NAME, money, repeatText, useHomeFilter } from '../lib/home'
 import type { HomeRecord, Job, JobStatus } from '../lib/types'
-import { Card, Confirm, Empty, Loading, Menu, type Anchor, errMsg, rectOf, useAsync, useToast } from '../components/ui'
+import { Card, Confirm, Empty, Loading, Menu, Segmented, type Anchor, errMsg, rectOf, useAsync, useToast } from '../components/ui'
 import { Icon } from '../components/icons'
 import { DoneModal, JobModal } from '../components/Forms'
 import { JobRow, RecordRow, StatusPill } from '../components/Rows'
@@ -21,7 +21,10 @@ export default function Upkeep() {
   const [home, setHome] = useHomeFilter(homes)
   const [q, setQ] = useState('')
   const [all, setAll] = useState(false)
-  const { data, reload, error } = useAsync(() => api.get<Job[]>(`${V1}/jobs?${new URLSearchParams({ home_id: String(home), q, all: all ? '1' : '' })}`), [home, q, all])
+  const [scope, setScope] = useState<'' | 'house' | 'plants'>(() => (localStorage.getItem('phm-upkeep-scope') as '' | 'house' | 'plants') || '')
+  const { plants } = useData()
+  const { data, reload, error } = useAsync(() => api.get<Job[]>(`${V1}/jobs?${new URLSearchParams({ home_id: String(home), q, all: all ? '1' : '', scope })}`), [home, q, all, scope])
+  const setScopeKept = (v: '' | 'house' | 'plants') => { setScope(v); localStorage.setItem('phm-upkeep-scope', v) }
   useOnChange(reload)
   const many = (homes || []).filter(h => !h.archived).length > 1
   return (
@@ -33,6 +36,7 @@ export default function Upkeep() {
       </div>
       <div className="row wrap filters">
         <input className="search-in" value={q} onChange={e => setQ(e.target.value)} placeholder="Find upkeep…" aria-label="Find upkeep" />
+        {plants.length > 0 && <Segmented size="sm" value={scope} onChange={setScopeKept} label="Show" options={[{ value: '', label: 'Everything' }, { value: 'house', label: 'House' }, { value: 'plants', label: 'Plants' }]} />}
         <label className="check-row"><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} />Show finished one-offs</label>
       </div>
       {error && <div className="callout danger"><Icon name="alert" size={15} />{error}</div>}
@@ -75,10 +79,10 @@ export function JobPage() {
   return (
     <div className="stack loose">
       <div className="detail-head">
-        <span className={`detail-ico st-${j.status}`}><Icon name="wrench" size={22} /></span>
+        <span className={`detail-ico st-${j.status}`}><Icon name={j.plant_id ? 'leaf' : 'wrench'} size={22} /></span>
         <div className="grow">
           <h1 className="home-title">{j.title}</h1>
-          <p className="muted">{[j.thing_name && <Link key="t" to={`/things/${j.thing_id}`}>{j.thing_name}</Link>, j.home_name, repeatText(j.every_n, j.every_unit)].filter(Boolean).reduce<React.ReactNode[]>((a, x, i) => i ? [...a, ' · ', x] : [x], [])}</p>
+          <p className="muted">{[j.thing_name && <Link key="t" to={`/things/${j.thing_id}`}>{j.thing_name}</Link>, j.plant_name && <Link key="p" to={`/plants/${j.plant_id}`}>{j.plant_name}</Link>, j.home_name, repeatText(j.every_n, j.every_unit)].filter(Boolean).reduce<React.ReactNode[]>((a, x, i) => i ? [...a, ' · ', x] : [x], [])}</p>
         </div>
         <StatusPill job={j} />
       </div>

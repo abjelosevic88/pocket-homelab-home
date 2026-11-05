@@ -1,4 +1,5 @@
 // Overview: what needs doing now, what is coming, what was done lately, what it cost, warranties and meters.
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
@@ -11,6 +12,7 @@ import { Icon } from '../components/icons'
 import { Select } from '../components/Select'
 import { JobRow, RecordRow } from '../components/Rows'
 import { openCreate } from '../components/Layout'
+import { WaterAllModal } from '../components/PlantForms'
 
 export function HomePicker({ value, onChange }: { value: number; onChange: (id: number) => void }) {
   const { homes } = useData()
@@ -21,8 +23,9 @@ export function HomePicker({ value, onChange }: { value: number; onChange: (id: 
 
 export default function Overview() {
   const { user } = useApp()
-  const { homes } = useData()
+  const { homes, plants } = useData()
   const [home, setHome] = useHomeFilter(homes)
+  const [water, setWater] = useState(false)
   const { data: o, reload, error } = useAsync(() => api.get<OverviewT>(`${V1}/overview${home ? `?home_id=${home}` : ''}`), [home])
   useOnChange(reload)
   if (error) return <div className="callout danger"><Icon name="alert" size={15} />{error}</div>
@@ -68,14 +71,18 @@ export default function Overview() {
           <div className="tile-val">{money(spent, cur, true)}</div>
           <div className="muted small">{before ? `${money(before, cur, true)} by this time last year` : 'nothing logged last year'}</div>
         </Link>
-        <Link to="/things" className="tile">
+        {o.plants.count > 0 ? <Link to="/plants" className="tile tile-plants">
+          <div className="tile-head"><span className="tile-ico"><Icon name="leaf" size={14} /></span>Plants</div>
+          <div className="tile-val">{o.plants.count}</div>
+          <div className="muted small">{o.plants.water_due ? `${o.plants.water_due} to water today` : o.plants.needs_care ? `${o.plants.needs_care} need care today` : 'nothing to water today'}</div>
+        </Link> : <Link to="/things" className="tile">
           <div className="tile-head"><span className="tile-ico"><Icon name="package" size={14} /></span>Appliances and parts</div>
           <div className="tile-val">{o.things}</div>
-        </Link>
+        </Link>}
       </div>
 
       <div className="home-grid">
-        <Card title="Needs doing" flush actions={<Link to="/upkeep" className="btn ghost sm">All upkeep</Link>}>
+        <Card title="Needs doing" flush actions={<>{o.plants.water_due > 1 && <button type="button" className="btn ghost sm" onClick={() => setWater(true)}><Icon name="droplet" size={14} />Water all</button>}<Link to="/upkeep" className="btn ghost sm">All upkeep</Link></>}>
           {o.attention.length === 0 ? <p className="muted pad">All done. Nothing is overdue or due in the next days.</p>
             : <div className="list">{o.attention.map(j => <JobRow key={j.id} job={j} showHome={!home && o.homes.length > 1} onChanged={reload} />)}</div>}
         </Card>
@@ -100,6 +107,7 @@ export default function Overview() {
                 {m.needs_reading && <span className="pill st-soon"><Icon name="clock" size={12} />Read it</span>}
               </Link>))}</div>
           </Card>}
+          {water && <WaterAllModal plants={plants.filter(p => !home || p.home_id === home)} onClose={() => setWater(false)} onDone={reload} />}
           {o.warranties.length > 0 && <Card title="Warranties" flush>
             <div className="list">{o.warranties.map(w => (
               <Link key={w.thing_id} to={`/things/${w.thing_id}`} className="list-row">

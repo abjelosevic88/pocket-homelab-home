@@ -151,6 +151,7 @@ function Notifications() {
       <Section title="What to tell you" icon="clock" sub="Everything goes in one message a day, so it never piles up.">
         <SettingRow title="At" help="Server time."><Select ariaLabel="Hour" value={String(f.notify_hour)} onChange={v => setF({ ...f, notify_hour: Number(v) })} options={HOURS} /></SettingRow>
         <SettingRow title="Upkeep" help="When it becomes due soon, due and overdue; overdue again on Mondays."><Switch checked={f.notify_upkeep} onChange={v => setF({ ...f, notify_upkeep: v })} label="Upkeep" /></SettingRow>
+        <SettingRow title="Plant care" help="Plants to water, feed or repot today, and what is late; one line per kind of care."><Switch checked={f.notify_plants} onChange={v => setF({ ...f, notify_plants: v })} label="Plant care" /></SettingRow>
         <SettingRow title="Warranties" help="Thirty days before one ends."><Switch checked={f.notify_warranty} onChange={v => setF({ ...f, notify_warranty: v })} label="Warranties" /></SettingRow>
         <SettingRow title="Meter readings" help="On each meter's reading day."><Switch checked={f.notify_meters} onChange={v => setF({ ...f, notify_meters: v })} label="Meters" /></SettingRow>
       </Section>
@@ -207,8 +208,8 @@ function Integrations() {
       })}
       <Section title="Other Pocket apps" icon="layers" sub="Home offers your home to the rest of the box through Pocket Core: Pocket AI answers “what is due this week?” and can log work for you, Pocket Day can write repairs into your journal. Switched off until you allow them in Pocket Core → Links.">
         <dl className="set-dl">
-          <div><dt>home:read</dt><dd className="muted">Homes, appliances, upkeep and when it is due, the log with costs, meter readings.</dd></div>
-          <div><dt>home:write</dt><dd className="muted">Log work and meter readings, mark upkeep done; only what that app logged itself can be changed by it.</dd></div>
+          <div><dt>home:read</dt><dd className="muted">Homes, appliances, plants, upkeep and plant care and when it is due, the log with costs, meter readings.</dd></div>
+          <div><dt>home:write</dt><dd className="muted">Log work and meter readings, mark upkeep done and plants watered; only what that app logged itself can be changed by it.</dd></div>
         </dl>
       </Section>
       <div className="row"><button type="button" className="btn primary" onClick={() => save()} disabled={busy}>Save changes</button></div>
@@ -240,6 +241,8 @@ function CalendarOptions({ f, save, onSync }: { f: SettingsT; save: (p?: Partial
   if (!f.calendar_sync) return null
   return (
     <>
+      <SettingRow title="Plant care too" help="Watering every few days can fill a calendar; switch it off to keep only the house.">
+        <Switch checked={f.calendar_plants} onChange={v => save({ calendar_plants: v })} label="Plant care on the calendar" /></SettingRow>
       <SettingRow title="Calendar" help="Otherwise your default calendar.">
         <Select ariaLabel="Calendar" value={f.calendar_id ? String(f.calendar_id) : ''} onChange={v => save({ calendar_id: Number(v) || 0 })} clearLabel="My default calendar" placeholder="My default calendar"
           options={(cals?.items || []).map(c => ({ value: String(c.id), label: c.name }))} />

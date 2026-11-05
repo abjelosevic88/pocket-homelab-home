@@ -10,6 +10,7 @@ import { Sidebar } from './Sidebar'
 import { CommandPalette, type PaletteCommand } from './CommandPalette'
 import { ShortcutsSheet } from './ShortcutsSheet'
 import { HomeModal, JobModal, MeterModal, ProModal, ReadingModal, RecordModal, ThingModal } from './Forms'
+import { PlantModal } from './PlantForms'
 import { Avatar, type Anchor, type MenuItem, Menu, MenuButton, modalOpen, rectOf, useIsMobile, useMediaQuery, useToast } from './ui'
 import { AskButton } from './AskButton'
 
@@ -24,7 +25,7 @@ export function useCrumb(title: string | undefined) {
   useEffect(() => { set(title || ''); return () => set('') }, [title, set])
 }
 
-export type CreateKind = 'record' | 'job' | 'thing' | 'reading' | 'meter' | 'pro' | 'home'
+export type CreateKind = 'record' | 'job' | 'thing' | 'plant' | 'reading' | 'meter' | 'pro' | 'home'
 
 /** Open a create dialog from anywhere (a page's button). */
 export const openCreate = (k: CreateKind) => window.dispatchEvent(new CustomEvent('phm:create', { detail: { kind: k } }))
@@ -37,6 +38,7 @@ export function createItems(onCreate: (k: CreateKind) => void): MenuItem[] {
     { label: 'Read a meter', icon: 'gauge', hint: 'R', onSelect: () => onCreate('reading') },
     'sep',
     { label: 'An appliance or part', icon: 'package', onSelect: () => onCreate('thing') },
+    { label: 'A plant', icon: 'leaf', onSelect: () => onCreate('plant') },
     { label: 'A pro', icon: 'user', onSelect: () => onCreate('pro') },
     { label: 'A meter', icon: 'zap', onSelect: () => onCreate('meter') },
     { label: 'A home', icon: 'home', onSelect: () => onCreate('home') },
@@ -73,7 +75,7 @@ function Shell() {
 
   const create = async (k: CreateKind) => {
     closeDrawer()
-    if ((k === 'record' || k === 'job' || k === 'thing' || k === 'reading' || k === 'meter') && homes && homes.length === 0) {
+    if ((k === 'record' || k === 'job' || k === 'thing' || k === 'plant' || k === 'reading' || k === 'meter') && homes && homes.length === 0) {
       toast('Add your home first'); setModal({ kind: 'home' }); return
     }
     if (k === 'reading') {
@@ -114,6 +116,7 @@ function Shell() {
         case 'h': go('/'); break
         case 'u': go('/upkeep'); break
         case 't': go('/things'); break
+        case 'g': go('/plants'); break
         case 'l': go('/log'); break
         case 'm': go('/meters'); break
         case 'p': go('/pros'); break
@@ -130,10 +133,12 @@ function Shell() {
     { id: 'job', label: 'Add upkeep', icon: 'wrench', hint: 'A', keywords: 'maintenance recurring reminder task', run: () => create('job') },
     { id: 'reading', label: 'Read a meter', icon: 'gauge', hint: 'R', keywords: 'electricity water gas reading', run: () => create('reading') },
     { id: 'thing', label: 'Add an appliance or part', icon: 'package', keywords: 'boiler fridge new thing', run: () => create('thing') },
+    { id: 'plant', label: 'Add a plant', icon: 'leaf', keywords: 'house plant flower herb', run: () => create('plant') },
     { id: 'pro', label: 'Add a pro', icon: 'user', keywords: 'plumber electrician contractor', run: () => create('pro') },
     { id: 'home', label: 'Overview', icon: 'home', hint: 'H', run: () => navigate('/') },
     { id: 'upkeep', label: 'Upkeep', icon: 'wrench', hint: 'U', keywords: 'due overdue maintenance', run: () => navigate('/upkeep') },
     { id: 'things', label: 'Appliances and parts', icon: 'package', hint: 'T', keywords: 'things warranty manuals', run: () => navigate('/things') },
+    { id: 'plants', label: 'Plants', icon: 'leaf', hint: 'G', keywords: 'house plants water watering green', run: () => navigate('/plants') },
     { id: 'log', label: 'Log', icon: 'note', hint: 'L', keywords: 'history repairs costs spending', run: () => navigate('/log') },
     { id: 'meters', label: 'Meters', icon: 'gauge', hint: 'M', keywords: 'electricity water gas usage', run: () => navigate('/meters') },
     { id: 'pros', label: 'Pros', icon: 'users', hint: 'P', keywords: 'plumber electrician people', run: () => navigate('/pros') },
@@ -163,6 +168,7 @@ function Shell() {
         {modal?.kind === 'record' && <RecordModal onClose={close} onSaved={r => navigate(`/log/${r.id}`)} />}
         {modal?.kind === 'job' && <JobModal onClose={close} onSaved={j => navigate(`/upkeep/${j.id}`)} />}
         {modal?.kind === 'thing' && <ThingModal onClose={close} onSaved={t => navigate(`/things/${t.id}`)} />}
+        {modal?.kind === 'plant' && <PlantModal onClose={close} onSaved={p => navigate(`/plants/${p.id}`)} />}
         {modal?.kind === 'meter' && <MeterModal onClose={close} onSaved={m => navigate(`/meters/${m.id}`)} />}
         {modal?.kind === 'reading' && modal.meter && <ReadingModal meter={modal.meter} onClose={close} />}
         {modal?.kind === 'pro' && <ProModal onClose={close} onSaved={p => navigate(`/pros/${p.id}`)} />}
@@ -172,7 +178,7 @@ function Shell() {
   )
 }
 
-const SECTION: Record<string, [string, string]> = { '': ['Overview', '/'], upkeep: ['Upkeep', '/upkeep'], things: ['Appliances and parts', '/things'], log: ['Log', '/log'], meters: ['Meters', '/meters'], pros: ['Pros', '/pros'], homes: ['My homes', '/homes'] }
+const SECTION: Record<string, [string, string]> = { '': ['Overview', '/'], upkeep: ['Upkeep', '/upkeep'], things: ['Appliances and parts', '/things'], plants: ['Plants', '/plants'], log: ['Log', '/log'], meters: ['Meters', '/meters'], pros: ['Pros', '/pros'], homes: ['My homes', '/homes'] }
 
 function TopBar({ onMenu, onPalette, mobile, compact, sidebarOpen, crumb }: { onMenu: () => void; onPalette: () => void; mobile: boolean; compact: boolean; sidebarOpen: boolean; crumb: string }) {
   const { user, themeMode, setThemeMode, status, setUser } = useApp()

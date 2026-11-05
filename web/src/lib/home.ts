@@ -29,6 +29,7 @@ export const RECORD_KINDS: { value: string; label: string; icon: string }[] = [
   { value: 'improvement', label: 'Improvement', icon: 'sparkles' },
   { value: 'inspection', label: 'Check', icon: 'check-circle' },
   { value: 'purchase', label: 'Purchase', icon: 'cart' },
+  { value: 'plant', label: 'Plant care', icon: 'leaf' },
   { value: 'other', label: 'Other', icon: 'note' },
 ]
 export const RECORD_KIND_NAME: Record<string, string> = Object.fromEntries(RECORD_KINDS.map(c => [c.value, c.label]))
