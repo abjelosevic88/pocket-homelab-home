@@ -34,9 +34,9 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 			attention = append(attention, j)
 			counts[j.Status]++
 		default:
-			// watering every few days would crowd out the house: only
-			// plant care that comes round less than monthly is "coming up"
-			if j.PlantID != nil && intervalDays(j) <= 31 {
+			// watering and feeding every few weeks would crowd out the
+			// house: only rare plant care (repotting) is "coming up"
+			if j.PlantID != nil && intervalDays(j) <= 92 {
 				continue
 			}
 			upcoming = append(upcoming, j)

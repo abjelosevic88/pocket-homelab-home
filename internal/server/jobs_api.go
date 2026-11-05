@@ -498,8 +498,14 @@ func scopeParam(r *http.Request) string {
 }
 
 // jobName is how a job reads outside its page: "Gas boiler: Annual
-// service", "Monstera: Water".
+// service", "Water Monstera", "Check Ficus for pests".
 func jobName(j store.Job) string {
+	if j.PlantName != "" && j.Care != "" && j.Title == careTitle(j.Care) {
+		if j.Care == "pests" {
+			return "Check " + j.PlantName + " for pests"
+		}
+		return j.Title + " " + j.PlantName
+	}
 	of := j.ThingName
 	if j.PlantName != "" {
 		of = j.PlantName
