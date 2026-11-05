@@ -106,20 +106,21 @@ func (j *Job) SetStatus(today string) {
 	}
 }
 
-const jobCols = `j.id, j.user_id, j.home_id, j.thing_id, j.pro_id, j.title, j.notes, j.every_n, j.every_unit, j.due_on, j.soon_days, j.est_cost, j.last_done,
+const jobCols = `j.id, j.user_id, j.home_id, j.thing_id, j.plant_id, j.care, j.pro_id, j.title, j.notes, j.every_n, j.every_unit, j.due_on, j.soon_days, j.est_cost, j.last_done,
 	j.done_count, j.paused, j.finished_at, j.notified_level, j.notified_on, j.cal_event_id, j.cal_synced, j.task_id, j.source, j.created_at, j.updated_at,
-	h.name, h.currency, COALESCE(t.name, ''), COALESCE(p.name, '')`
+	h.name, h.currency, COALESCE(t.name, ''), COALESCE(pl.name, ''), COALESCE(p.name, '')`
 
-const jobFrom = ` FROM jobs j JOIN homes h ON h.id = j.home_id LEFT JOIN things t ON t.id = j.thing_id LEFT JOIN pros p ON p.id = j.pro_id`
+const jobFrom = ` FROM jobs j JOIN homes h ON h.id = j.home_id LEFT JOIN things t ON t.id = j.thing_id LEFT JOIN plants pl ON pl.id = j.plant_id LEFT JOIN pros p ON p.id = j.pro_id`
 
 func scanJob(row interface{ Scan(...any) error }) (*Job, error) {
 	var j Job
-	var thing, pro, est, cal, task sql.NullInt64
-	if err := row.Scan(&j.ID, &j.UserID, &j.HomeID, &thing, &pro, &j.Title, &j.Notes, &j.EveryN, &j.EveryUnit, &j.DueOn, &j.SoonDays, &est, &j.LastDone,
+	var thing, plant, pro, est, cal, task sql.NullInt64
+	if err := row.Scan(&j.ID, &j.UserID, &j.HomeID, &thing, &plant, &j.Care, &pro, &j.Title, &j.Notes, &j.EveryN, &j.EveryUnit, &j.DueOn, &j.SoonDays, &est, &j.LastDone,
 		&j.DoneCount, &j.Paused, &j.FinishedAt, &j.NotifiedLevel, &j.NotifiedOn, &cal, &j.CalSynced, &task, &j.Source, &j.CreatedAt, &j.UpdatedAt,
-		&j.HomeName, &j.Currency, &j.ThingName, &j.ProName); err != nil {
+		&j.HomeName, &j.Currency, &j.ThingName, &j.PlantName, &j.ProName); err != nil {
 		return nil, err
 	}
+	j.PlantID = scanID(plant)
 	j.ThingID, j.ProID, j.EstCost, j.CalEventID, j.TaskID = scanID(thing), scanID(pro), scanID(est), scanID(cal), scanID(task)
 	j.SetStatus(Today())
 	return &j, nil
@@ -129,6 +130,8 @@ func scanJob(row interface{ Scan(...any) error }) (*Job, error) {
 type JobFilter struct {
 	HomeID  int64
 	ThingID int64
+	PlantID int64
+	Scope   string // "" everything | "house" upkeep only | "plants" plant care only
 	Q       string
 	All     bool // include finished one-offs
 	Until   string
@@ -146,6 +149,16 @@ func (s *Store) ListJobs(ctx context.Context, uid int64, f JobFilter) ([]Job, er
 		q += ` AND j.thing_id = ?`
 		args = append(args, f.ThingID)
 	}
+	if f.PlantID > 0 {
+		q += ` AND j.plant_id = ?`
+		args = append(args, f.PlantID)
+	}
+	switch f.Scope {
+	case "house":
+		q += ` AND j.plant_id IS NULL`
+	case "plants":
+		q += ` AND j.plant_id IS NOT NULL`
+	}
 	if !f.All {
 		q += ` AND j.finished_at = ''`
 	}
@@ -155,8 +168,8 @@ func (s *Store) ListJobs(ctx context.Context, uid int64, f JobFilter) ([]Job, er
 	}
 	if f.Q != "" {
 		like := "%" + strings.ToLower(f.Q) + "%"
-		q += ` AND (lower(j.title) LIKE ? OR lower(j.notes) LIKE ? OR lower(COALESCE(t.name, '')) LIKE ?)`
-		args = append(args, like, like, like)
+		q += ` AND (lower(j.title) LIKE ? OR lower(j.notes) LIKE ? OR lower(COALESCE(t.name, '')) LIKE ? OR lower(COALESCE(pl.name, '')) LIKE ?)`
+		args = append(args, like, like, like, like)
 	}
 	q += ` ORDER BY j.finished_at <> '', j.paused, j.due_on, j.id`
 	rows, err := s.DB.QueryContext(ctx, q, args...)
@@ -193,6 +206,9 @@ func (s *Store) jobRefs(ctx context.Context, uid int64, j *Job) error {
 	if err := s.owns(ctx, "things", uid, j.ThingID); err != nil {
 		return err
 	}
+	if err := s.owns(ctx, "plants", uid, j.PlantID); err != nil {
+		return err
+	}
 	return s.owns(ctx, "pros", uid, j.ProID)
 }
 
@@ -204,8 +220,8 @@ func (s *Store) CreateJob(ctx context.Context, uid int64, j *Job) error {
 	if j.Source == "" {
 		j.Source = "web"
 	}
-	res, err := s.DB.ExecContext(ctx, `INSERT INTO jobs (user_id, home_id, thing_id, pro_id, title, notes, every_n, every_unit, due_on, soon_days, est_cost, last_done, done_count, paused, source)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, uid, j.HomeID, nullID(j.ThingID), nullID(j.ProID), j.Title, j.Notes, j.EveryN, j.EveryUnit, j.DueOn,
+	res, err := s.DB.ExecContext(ctx, `INSERT INTO jobs (user_id, home_id, thing_id, plant_id, care, pro_id, title, notes, every_n, every_unit, due_on, soon_days, est_cost, last_done, done_count, paused, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, uid, j.HomeID, nullID(j.ThingID), nullID(j.PlantID), j.Care, nullID(j.ProID), j.Title, j.Notes, j.EveryN, j.EveryUnit, j.DueOn,
 		j.SoonDays, nullID(j.EstCost), j.LastDone, j.DoneCount, boolInt(j.Paused), j.Source)
 	if err != nil {
 		return err
@@ -219,9 +235,9 @@ func (s *Store) UpdateJob(ctx context.Context, uid int64, j *Job) error {
 	if err := s.jobRefs(ctx, uid, j); err != nil {
 		return err
 	}
-	res, err := s.DB.ExecContext(ctx, `UPDATE jobs SET home_id = ?, thing_id = ?, pro_id = ?, title = ?, notes = ?, every_n = ?, every_unit = ?, due_on = ?, soon_days = ?,
+	res, err := s.DB.ExecContext(ctx, `UPDATE jobs SET home_id = ?, thing_id = ?, plant_id = ?, care = ?, pro_id = ?, title = ?, notes = ?, every_n = ?, every_unit = ?, due_on = ?, soon_days = ?,
 		est_cost = ?, paused = ?, finished_at = ?, last_done = ?, done_count = ?, notified_level = CASE WHEN due_on <> ? THEN '' ELSE notified_level END, updated_at = ?
-		WHERE id = ? AND user_id = ?`, j.HomeID, nullID(j.ThingID), nullID(j.ProID), j.Title, j.Notes, j.EveryN, j.EveryUnit, j.DueOn, j.SoonDays,
+		WHERE id = ? AND user_id = ?`, j.HomeID, nullID(j.ThingID), nullID(j.PlantID), j.Care, nullID(j.ProID), j.Title, j.Notes, j.EveryN, j.EveryUnit, j.DueOn, j.SoonDays,
 		nullID(j.EstCost), boolInt(j.Paused), j.FinishedAt, j.LastDone, j.DoneCount, j.DueOn, Now(), j.ID, uid)
 	return affected(res, err)
 }
@@ -289,18 +305,19 @@ func (s *Store) CompleteJob(ctx context.Context, uid int64, j *Job, date string,
 
 // ---------- the log ----------
 
-const recordCols = `r.id, r.user_id, r.home_id, r.thing_id, r.job_id, r.pro_id, r.date, r.kind, r.title, r.notes, r.cost, r.currency, r.money_tx_id, r.money_user_id,
-	r.source, r.external_id, r.created_at, r.updated_at, h.name, COALESCE(t.name, ''), COALESCE(p.name, ''), COALESCE(j.title, '')`
+const recordCols = `r.id, r.user_id, r.home_id, r.thing_id, r.plant_id, r.job_id, r.pro_id, r.date, r.kind, r.title, r.notes, r.cost, r.currency, r.money_tx_id, r.money_user_id,
+	r.source, r.external_id, r.created_at, r.updated_at, h.name, COALESCE(t.name, ''), COALESCE(pl.name, ''), COALESCE(p.name, ''), COALESCE(j.title, '')`
 
-const recordFrom = ` FROM records r JOIN homes h ON h.id = r.home_id LEFT JOIN things t ON t.id = r.thing_id LEFT JOIN pros p ON p.id = r.pro_id LEFT JOIN jobs j ON j.id = r.job_id`
+const recordFrom = ` FROM records r JOIN homes h ON h.id = r.home_id LEFT JOIN things t ON t.id = r.thing_id LEFT JOIN plants pl ON pl.id = r.plant_id LEFT JOIN pros p ON p.id = r.pro_id LEFT JOIN jobs j ON j.id = r.job_id`
 
 func scanRecord(row interface{ Scan(...any) error }) (*Record, error) {
 	var r Record
-	var thing, job, pro, tx, txu sql.NullInt64
-	if err := row.Scan(&r.ID, &r.UserID, &r.HomeID, &thing, &job, &pro, &r.Date, &r.Kind, &r.Title, &r.Notes, &r.Cost, &r.Currency, &tx, &txu,
-		&r.Source, &r.ExternalID, &r.CreatedAt, &r.UpdatedAt, &r.HomeName, &r.ThingName, &r.ProName, &r.JobTitle); err != nil {
+	var thing, plant, job, pro, tx, txu sql.NullInt64
+	if err := row.Scan(&r.ID, &r.UserID, &r.HomeID, &thing, &plant, &job, &pro, &r.Date, &r.Kind, &r.Title, &r.Notes, &r.Cost, &r.Currency, &tx, &txu,
+		&r.Source, &r.ExternalID, &r.CreatedAt, &r.UpdatedAt, &r.HomeName, &r.ThingName, &r.PlantName, &r.ProName, &r.JobTitle); err != nil {
 		return nil, err
 	}
+	r.PlantID = scanID(plant)
 	r.ThingID, r.JobID, r.ProID, r.MoneyTxID, r.MoneyUserID = scanID(thing), scanID(job), scanID(pro), scanID(tx), scanID(txu)
 	return &r, nil
 }
@@ -309,6 +326,8 @@ func scanRecord(row interface{ Scan(...any) error }) (*Record, error) {
 type RecordFilter struct {
 	HomeID  int64
 	ThingID int64
+	PlantID int64
+	Scope   string // "" everything | "house" without plant care | "plants" plant care only
 	ProID   int64
 	JobID   int64
 	Kind    string
@@ -330,6 +349,15 @@ func (s *Store) ListRecords(ctx context.Context, uid int64, f RecordFilter) ([]R
 	if f.ThingID > 0 {
 		add(` AND r.thing_id = ?`, f.ThingID)
 	}
+	if f.PlantID > 0 {
+		add(` AND r.plant_id = ?`, f.PlantID)
+	}
+	switch f.Scope {
+	case "house":
+		where += ` AND r.kind <> 'plant'`
+	case "plants":
+		where += ` AND (r.kind = 'plant' OR r.plant_id IS NOT NULL)`
+	}
 	if f.ProID > 0 {
 		add(` AND r.pro_id = ?`, f.ProID)
 	}
@@ -347,8 +375,8 @@ func (s *Store) ListRecords(ctx context.Context, uid int64, f RecordFilter) ([]R
 	}
 	if f.Q != "" {
 		like := "%" + strings.ToLower(f.Q) + "%"
-		where += ` AND (lower(r.title) LIKE ? OR lower(r.notes) LIKE ? OR lower(COALESCE(t.name, '')) LIKE ? OR lower(COALESCE(p.name, '')) LIKE ?)`
-		args = append(args, like, like, like, like)
+		where += ` AND (lower(r.title) LIKE ? OR lower(r.notes) LIKE ? OR lower(COALESCE(t.name, '')) LIKE ? OR lower(COALESCE(pl.name, '')) LIKE ? OR lower(COALESCE(p.name, '')) LIKE ?)`
+		args = append(args, like, like, like, like, like)
 	}
 	var total int
 	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(1)`+recordFrom+where, args...).Scan(&total); err != nil {
@@ -398,6 +426,9 @@ func (s *Store) recordRefs(ctx context.Context, uid int64, r *Record) error {
 	if err := s.owns(ctx, "things", uid, r.ThingID); err != nil {
 		return err
 	}
+	if err := s.owns(ctx, "plants", uid, r.PlantID); err != nil {
+		return err
+	}
 	if err := s.owns(ctx, "jobs", uid, r.JobID); err != nil {
 		return err
 	}
@@ -409,8 +440,8 @@ func (s *Store) insertRecord(ctx context.Context, x execer, uid int64, r *Record
 	if r.Source == "" {
 		r.Source = "web"
 	}
-	res, err := x.ExecContext(ctx, `INSERT INTO records (user_id, home_id, thing_id, job_id, pro_id, date, kind, title, notes, cost, currency, source, external_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, uid, r.HomeID, nullID(r.ThingID), nullID(r.JobID), nullID(r.ProID), r.Date, r.Kind, r.Title, r.Notes,
+	res, err := x.ExecContext(ctx, `INSERT INTO records (user_id, home_id, thing_id, plant_id, job_id, pro_id, date, kind, title, notes, cost, currency, source, external_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, uid, r.HomeID, nullID(r.ThingID), nullID(r.PlantID), nullID(r.JobID), nullID(r.ProID), r.Date, r.Kind, r.Title, r.Notes,
 		r.Cost, r.Currency, r.Source, r.ExternalID)
 	if err != nil {
 		return conflict(err)
@@ -432,8 +463,8 @@ func (s *Store) UpdateRecord(ctx context.Context, uid int64, r *Record) error {
 	if err := s.recordRefs(ctx, uid, r); err != nil {
 		return err
 	}
-	res, err := s.DB.ExecContext(ctx, `UPDATE records SET home_id = ?, thing_id = ?, job_id = ?, pro_id = ?, date = ?, kind = ?, title = ?, notes = ?, cost = ?, currency = ?, updated_at = ?
-		WHERE id = ? AND user_id = ?`, r.HomeID, nullID(r.ThingID), nullID(r.JobID), nullID(r.ProID), r.Date, r.Kind, r.Title, r.Notes, r.Cost, r.Currency, Now(), r.ID, uid)
+	res, err := s.DB.ExecContext(ctx, `UPDATE records SET home_id = ?, thing_id = ?, plant_id = ?, job_id = ?, pro_id = ?, date = ?, kind = ?, title = ?, notes = ?, cost = ?, currency = ?, updated_at = ?
+		WHERE id = ? AND user_id = ?`, r.HomeID, nullID(r.ThingID), nullID(r.PlantID), nullID(r.JobID), nullID(r.ProID), r.Date, r.Kind, r.Title, r.Notes, r.Cost, r.Currency, Now(), r.ID, uid)
 	return affected(res, err)
 }
 

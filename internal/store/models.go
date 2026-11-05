@@ -105,6 +105,8 @@ type Job struct {
 	UserID        int64  `json:"-"`
 	HomeID        int64  `json:"home_id"`
 	ThingID       *int64 `json:"thing_id"`
+	PlantID       *int64 `json:"plant_id"`
+	Care          string `json:"care"` // a plant's care: water | fertilise | …; "" for upkeep
 	ProID         *int64 `json:"pro_id"`
 	Title         string `json:"title"`
 	Notes         string `json:"notes"`
@@ -128,6 +130,7 @@ type Job struct {
 
 	HomeName  string `json:"home_name"`
 	ThingName string `json:"thing_name"`
+	PlantName string `json:"plant_name"`
 	ProName   string `json:"pro_name"`
 	Currency  string `json:"currency"`
 	Status    string `json:"status"` // overdue | due | soon | ok | paused | done
@@ -143,6 +146,7 @@ type Record struct {
 	UserID      int64  `json:"-"`
 	HomeID      int64  `json:"home_id"`
 	ThingID     *int64 `json:"thing_id"`
+	PlantID     *int64 `json:"plant_id"`
 	JobID       *int64 `json:"job_id"`
 	ProID       *int64 `json:"pro_id"`
 	Date        string `json:"date"`
@@ -160,8 +164,36 @@ type Record struct {
 
 	HomeName  string `json:"home_name"`
 	ThingName string `json:"thing_name"`
+	PlantName string `json:"plant_name"`
 	ProName   string `json:"pro_name"`
 	JobTitle  string `json:"job_title"`
+}
+
+// Plant is a house plant. Its care schedule is upkeep (jobs with PlantID and
+// Care set), what was done is in the log (records with PlantID).
+type Plant struct {
+	ID         int64  `json:"id"`
+	UserID     int64  `json:"-"`
+	HomeID     int64  `json:"home_id"`
+	Name       string `json:"name"`
+	Species    string `json:"species"`
+	Kind       string `json:"kind"`  // foliage | flowering | succulent | cactus | herb | fern | orchid | palm | other
+	Room       string `json:"room"`  // the room or the spot
+	Light      string `json:"light"` // low | medium | bright | direct
+	AcquiredOn string `json:"acquired_on"`
+	Pot        string `json:"pot"`
+	Notes      string `json:"notes"`
+	Archived   bool   `json:"archived"`
+	GoneReason string `json:"gone_reason"` // died | given | other
+	GoneOn     string `json:"gone_on"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+
+	HomeName    string `json:"home_name"`
+	Care        []Job  `json:"care"` // its open care, most urgent first
+	Status      string `json:"status"`
+	NextCare    string `json:"next_care"` // the date of the next care
+	LastWatered string `json:"last_watered"`
 }
 
 // Meter is an electricity, water or gas meter.
@@ -233,6 +265,7 @@ type Settings struct {
 	NotifyUpkeep   bool   `json:"notify_upkeep"`   // upkeep due soon, due, overdue
 	NotifyWarranty bool   `json:"notify_warranty"` // a warranty ends within 30 days
 	NotifyMeters   bool   `json:"notify_meters"`   // a meter's reading day
+	NotifyPlants   bool   `json:"notify_plants"`   // plant care due today or overdue
 	NotifyHour     int    `json:"notify_hour"`
 	NotifyURL      string `json:"notify_url"`
 	NotifyFormat   string `json:"notify_format"` // apprise | ntfy | json
@@ -252,7 +285,8 @@ type Settings struct {
 	CalendarToken     string `json:"calendar_token"`
 	CalendarPublicURL string `json:"calendar_public_url"`
 	CalendarSync      bool   `json:"calendar_sync"`
-	CalendarID        int64  `json:"calendar_id"` // 0 = the person's default calendar
+	CalendarID        int64  `json:"calendar_id"`     // 0 = the person's default calendar
+	CalendarPlants    bool   `json:"calendar_plants"` // plant care on the calendar too
 
 	// Pocket Tasks: "Add to my tasks" on a job.
 	TasksMode      string `json:"tasks_mode"`

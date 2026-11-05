@@ -309,7 +309,8 @@ func (s *Store) DeleteThing(ctx context.Context, uid, id int64) ([]Job, error) {
 
 // Rooms lists the rooms the person has used, most used first.
 func (s *Store) Rooms(ctx context.Context, uid int64) ([]string, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT room FROM things WHERE user_id = ? AND room <> '' GROUP BY room ORDER BY COUNT(1) DESC, room`, uid)
+	rows, err := s.DB.QueryContext(ctx, `SELECT room FROM (SELECT room FROM things WHERE user_id = ? AND room <> '' UNION ALL SELECT room FROM plants WHERE user_id = ? AND room <> '')
+		GROUP BY room ORDER BY COUNT(1) DESC, room`, uid, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +415,7 @@ func (s *Store) DeletePro(ctx context.Context, uid, id int64) error {
 // ---------- attachments ----------
 
 // ownerTable maps an attachment owner kind to its table.
-var ownerTable = map[string]string{"home": "homes", "thing": "things", "record": "records"}
+var ownerTable = map[string]string{"home": "homes", "thing": "things", "record": "records", "plant": "plants"}
 
 // ValidOwnerKind reports whether attachments can hang off this kind.
 func ValidOwnerKind(k string) bool { _, ok := ownerTable[k]; return ok }
