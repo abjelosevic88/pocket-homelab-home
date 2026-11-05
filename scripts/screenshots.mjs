@@ -54,7 +54,10 @@ async function shot(page, name) { if (shots) await page.screenshot({ path: dir +
   await shot(page, 'desktop-log')
   await go(page, '/meters/2')
   await shot(page, 'desktop-meter')
-  for (const p of ['/things', '/meters', '/pros', '/pros/1', '/homes', '/homes/1', '/upkeep/1', '/log/1', '/settings/apps', '/settings/notifications', '/settings/general']) await go(page, p, 500)
+  await go(page, '/plants')
+  assert.ok((await page.content()).includes('need water today'), 'the plants page shows what to water')
+  await shot(page, 'desktop-plants')
+  for (const p of ['/plants/1', '/things', '/meters', '/pros', '/pros/1', '/homes', '/homes/1', '/upkeep/1', '/log/1', '/settings/apps', '/settings/notifications', '/settings/general']) await go(page, p, 500)
   await ctx.close()
 }
 
@@ -65,6 +68,8 @@ async function shot(page, name) { if (shots) await page.screenshot({ path: dir +
   await shot(page, 'phone-overview')
   await go(page, '/things/1')
   await shot(page, 'phone-thing')
+  await go(page, '/plants')
+  await shot(page, 'phone-plants')
   await ctx.close()
 }
 {
