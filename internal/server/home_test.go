@@ -327,6 +327,9 @@ func TestDemoSeeds(t *testing.T) {
 	if len(o["homes"].([]any)) != 2 || len(o["attention"].([]any)) == 0 || len(o["meters"].([]any)) != 4 {
 		t.Fatalf("demo overview: homes %d attention %d meters %d", len(o["homes"].([]any)), len(o["attention"].([]any)), len(o["meters"].([]any)))
 	}
+	if pl := o["plants"].(map[string]any); num(pl, "count") != 9 || num(pl, "water_due") < 2 {
+		t.Fatalf("demo plants: %v", pl)
+	}
 	// twice is a no-op
 	if err := a.s.seedDemo(context.Background(), a.ids["Alice"]); err != nil {
 		t.Fatal(err)

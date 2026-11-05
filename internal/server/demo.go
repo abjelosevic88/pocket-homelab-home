@@ -10,9 +10,10 @@ import (
 )
 
 // seedDemo fills the owner's account with two homes, their appliances,
-// upkeep in every state, two years of log and meter readings (DEMO_DATA,
-// for `make run`, the CI smoke test and the screenshots). Dates are
-// relative to today, so the demo always looks current.
+// upkeep in every state, two years of log, meter readings and house plants
+// with months of watering (DEMO_DATA, for `make run`, the CI smoke test and
+// the screenshots). Dates are relative to today, so the demo always looks
+// current.
 func (s *Server) seedDemo(ctx context.Context, uid int64) error {
 	// with AUTH_MODE=none this runs inside the first request; finish even
 	// when that client goes away
@@ -271,6 +272,9 @@ func (s *Server) seedDemo(ctx context.Context, uid int64) error {
 				return err
 			}
 		}
+	}
+	if err := s.seedDemoPlants(ctx, uid, rng, &house, &cabin); err != nil {
+		return err
 	}
 	s.log.Info("demo data seeded", "user", uid)
 	return nil
