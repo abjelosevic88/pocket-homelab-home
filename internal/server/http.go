@@ -61,6 +61,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/homes", s.handleListHomes)
 			r.Post("/homes", s.handleCreateHome)
 			r.Get("/homes/{id}", s.handleGetHome)
+			r.Get("/homes/{id}/plans", s.handleHomePlans)
 			r.Put("/homes/{id}", s.handleUpdateHome)
 			r.Delete("/homes/{id}", s.handleDeleteHome)
 

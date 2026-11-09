@@ -5,7 +5,7 @@ import { api, V1 } from '../lib/api'
 import { announceChange, useData, useOnChange } from '../lib/data'
 import { HOME_KINDS, fmtNum, useHomeFilter } from '../lib/home'
 import type { Attachment, Home, Thing } from '../lib/types'
-import { Card, Confirm, Empty, Loading, errMsg, useAsync, useToast } from '../components/ui'
+import { Card, Confirm, CoreHint, Empty, Loading, errMsg, useAsync, useToast } from '../components/ui'
 import { Icon } from '../components/icons'
 import { AttachModal, HomeModal } from '../components/Forms'
 import { ThingRow } from '../components/Rows'
@@ -70,6 +70,7 @@ export function HomePage() {
         </Card>
         <div className="stack">
           <Card title="Notes">{h.notes ? <p className="notes">{h.notes}</p> : <p className="muted">Where the water and gas shut-offs are, who has a spare key… <button type="button" className="link-btn" onClick={() => setModal('edit')}>Add notes</button></p>}</Card>
+          <FloorPlans homeId={h.id} />
           <Card title="Papers and links" sub="Deeds, insurance, the floor plan" flush actions={<button type="button" className="btn ghost sm" onClick={() => setModal('attach')}><Icon name="plus" size={14} />Add</button>}>
             {data.attachments.length === 0 ? <p className="muted pad">Nothing kept here yet.</p> : <div className="list">{data.attachments.map(a => (
               <div key={a.id} className="list-row">
@@ -86,4 +87,18 @@ export function HomePage() {
         onCancel={() => setModal('')} onConfirm={async () => { setModal(''); try { await api.del(`${V1}/homes/${h.id}`); toast('Deleted'); announceChange(); navigate('/homes') } catch (e) { toast(errMsg(e), 'err') } }} />}
     </div>
   )
+}
+
+/** The home's floor plans in Pocket Rooms (greyed, with why, when it is not connected). */
+function FloorPlans({ homeId }: { homeId: number }) {
+  const { data } = useAsync(() => api.get<{ plans: { id: number; name: string; area_m2: number; rooms: number; url: string }[]; connected: boolean; detail?: string; new_url?: string }>(`${V1}/homes/${homeId}/plans`), [homeId])
+  return <Card title="Floor plans" sub="Drawn to scale in Pocket Rooms" flush actions={data?.new_url ? <a className="btn ghost sm" href={data.new_url} target="_blank" rel="noreferrer"><Icon name="plus" size={14} />Draw one</a> : undefined}>
+    {!data ? <Loading /> : !data.connected ? <div className="pad"><p className="muted small">{data.detail || 'Pocket Rooms is not connected.'}</p><CoreHint /></div>
+      : data.plans.length === 0 ? <p className="muted pad">No plan of this home yet. In Pocket Rooms, tie a plan to it under the plan's Details.</p>
+      : <div className="list">{data.plans.map(p => <a key={p.id} className="list-row" href={p.url} target="_blank" rel="noreferrer">
+        <span className="list-ico"><Icon name="grid" size={16} /></span>
+        <span className="grow row-main"><span className="row-title">{p.name}</span><span className="muted small">{fmtNum(p.area_m2, 1)} m² · {p.rooms} {p.rooms === 1 ? 'room' : 'rooms'}</span></span>
+        <Icon name="external" size={14} />
+      </a>)}</div>}
+  </Card>
 }

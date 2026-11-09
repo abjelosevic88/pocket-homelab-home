@@ -31,6 +31,7 @@ const (
 	scopeContactsRead  = "contacts:read"
 	scopeDocumentsRead = "documents:read"
 	scopeItemsRead     = "items:read"
+	scopeRoomsRead     = "rooms:read"
 )
 
 // pocketApp is one sibling Pocket app Home acts in.
@@ -47,7 +48,8 @@ var (
 	appContacts  = pocketApp{"contacts", "Pocket Contacts", []string{scopeContactsRead}, "Pick the plumber or electrician from your contacts instead of typing them again"}
 	appDocuments = pocketApp{"documents", "Pocket Documents", []string{scopeDocumentsRead}, "Keep manuals, warranty cards and invoices from your archive with an appliance or a repair"}
 	appInventory = pocketApp{"inventory", "Pocket Inventory", []string{scopeItemsRead}, "Link an appliance to the same item on your shelves"}
-	pocketApps   = []pocketApp{appMoney, appCalendar, appTasks, appContacts, appDocuments, appInventory}
+	appRooms     = pocketApp{"rooms", "Pocket Rooms", []string{scopeRoomsRead}, "Show a home's floor plans from Pocket Rooms on its page"}
+	pocketApps   = []pocketApp{appMoney, appCalendar, appTasks, appContacts, appDocuments, appInventory, appRooms}
 )
 
 func appBySlug(slug string) (pocketApp, bool) {

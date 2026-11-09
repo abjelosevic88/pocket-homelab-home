@@ -172,6 +172,7 @@ const APPS: { slug: AppSlug; name: string; icon: string; title: string; sub: str
   { slug: 'contacts', name: 'Pocket Contacts', icon: 'users', title: 'Pocket Contacts — pros from your address book', sub: 'Pick the plumber or the electrician from your contacts instead of typing them again.', token: 'Pocket Contacts → Settings → API tokens', port: '8191' },
   { slug: 'documents', name: 'Pocket Documents', icon: 'file', title: 'Pocket Documents — manuals and invoices', sub: 'Keep a manual, warranty card or invoice from your archive with an appliance, a repair or the home itself.', token: 'Pocket Documents → Settings → API tokens', port: '8183' },
   { slug: 'inventory', name: 'Pocket Inventory', icon: 'package', title: 'Pocket Inventory — the same thing on your shelves', sub: 'Link an appliance to its item in Pocket Inventory.', token: 'Pocket Inventory → Settings → API tokens', port: '8170' },
+  { slug: 'rooms', name: 'Pocket Rooms', icon: 'grid', title: 'Pocket Rooms — the floor plans', sub: 'A home’s floor plans from Pocket Rooms on its page, with their area and rooms. Tie a plan to a home in Pocket Rooms.', token: 'Pocket Rooms → Settings → API & shortcuts', port: '8265' },
 ]
 
 function Integrations() {
