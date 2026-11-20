@@ -84,3 +84,5 @@ It uses Pocket Money (`accounts:read`, `transactions:write`), Pocket Calendar (`
 ## Settings, data
 
 `GET/PUT /settings`, `GET /settings/system`, `POST /integrations/test {which}`, `POST /notify/test`, `POST /notify/check` (run the daily check now), `GET/POST/DELETE /tokens`, `GET /backup` (admin), `GET /export.json`, `GET /export.csv`, `POST /import`. Health: `GET /healthz`, `/readyz`, `/metrics`.
+
+Pocket Move can copy your homes out and bring them in: `GET /pocket/portable` describes `GET /export.json`, `GET /export.csv` and `POST /import` (adds; the same file twice adds nothing) under the link scopes `move:export` and `move:import`.
