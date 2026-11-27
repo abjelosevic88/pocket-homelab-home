@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strings"
@@ -93,10 +94,28 @@ func (s *Server) handleDay(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "the date is YYYY-MM-DD")
 		return
 	}
-	recs, _, err := s.store.ListRecords(ctx, uid, store.RecordFilter{From: date, To: date})
+	d, err := s.dayOf(ctx, uid, date)
 	if err != nil {
 		s.fail(w, err, "day")
 		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"date": date, "records": d.recs, "readings": d.readings, "due": d.due, "plant_care": d.care})
+}
+
+// homeDay is what /day and Pocket Day's capability read for one day.
+type homeDay struct {
+	recs     []store.Record
+	readings []map[string]any
+	due      []store.Job
+	care     []map[string]any
+}
+
+// dayOf gathers one day: the log, the meters read, the upkeep due that day
+// and still open, and the plant care by kind.
+func (s *Server) dayOf(ctx context.Context, uid int64, date string) (*homeDay, error) {
+	recs, _, err := s.store.ListRecords(ctx, uid, store.RecordFilter{From: date, To: date})
+	if err != nil {
+		return nil, err
 	}
 	readings := []map[string]any{}
 	meters, _ := s.store.ListMeters(ctx, uid, 0)
@@ -141,7 +160,7 @@ func (s *Server) handleDay(w http.ResponseWriter, r *http.Request) {
 		care[i]["plants"] = append(care[i]["plants"].([]string), rc.PlantName)
 		care[i]["plant_ids"] = append(care[i]["plant_ids"].([]int64), *rc.PlantID)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"date": date, "records": recs, "readings": readings, "due": dueThat, "plant_care": care})
+	return &homeDay{recs: recs, readings: readings, due: dueThat, care: care}, nil
 }
 
 // intervalDays is about how many days a job comes round in (0 = once).
@@ -162,6 +181,24 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
+	f := s.find(ctx, uid, q, limit)
+	writeJSON(w, http.StatusOK, map[string]any{"query": q, "homes": f.homes, "things": f.things, "plants": f.plants, "jobs": f.jobs, "records": f.recs, "pros": f.pros, "meters": f.meters})
+}
+
+// homeFinds is what /search and Pocket Search's capability find.
+type homeFinds struct {
+	homes  []store.Home
+	things []store.Thing
+	plants []store.Plant
+	jobs   []store.Job
+	recs   []store.Record
+	pros   []store.Pro
+	meters []store.Meter
+}
+
+// find looks through the person's homes, things, plants, upkeep, the log,
+// pros and meters, at most limit of each.
+func (s *Server) find(ctx context.Context, uid int64, q string, limit int) homeFinds {
 	lq := strings.ToLower(q)
 	homes := []store.Home{}
 	hs, _ := s.store.ListHomes(ctx, uid)
@@ -194,6 +231,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if pros == nil {
 		pros = []store.Pro{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"query": q, "homes": homes[:cut(len(homes))], "things": things[:cut(len(things))], "plants": plants[:cut(len(plants))], "jobs": jobs[:cut(len(jobs))],
-		"records": recs, "pros": pros[:cut(len(pros))], "meters": meters[:cut(len(meters))]})
+	return homeFinds{homes: homes[:cut(len(homes))], things: things[:cut(len(things))], plants: plants[:cut(len(plants))], jobs: jobs[:cut(len(jobs))],
+		recs: recs, pros: pros[:cut(len(pros))], meters: meters[:cut(len(meters))]}
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -150,6 +151,12 @@ func (s *Server) handleGetJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) newJob(ctx context.Context, uid int64, in jobInput, keys map[string]bool) (*store.Job, string, error) {
+	return s.newJobWith(ctx, uid, in, keys, nil)
+}
+
+// newJobWith is newJob with also run in the job's own transaction (the
+// receipt of a quick line kept from Pocket Hub).
+func (s *Server) newJobWith(ctx context.Context, uid int64, in jobInput, keys map[string]bool, also func(*sql.Tx, *store.Job) error) (*store.Job, string, error) {
 	j := store.Job{EveryUnit: "month", SoonDays: 14, Source: firstNonEmpty(linkApp(ctx), "web")}
 	if in.ThingID != nil && in.HomeID == nil {
 		if t, err := s.store.GetThing(ctx, uid, *in.ThingID); err == nil {
@@ -175,7 +182,11 @@ func (s *Server) newJob(ctx context.Context, uid int64, in jobInput, keys map[st
 	if msg := in.apply(&j, keys); msg != "" {
 		return nil, msg, nil
 	}
-	if err := s.store.CreateJob(ctx, uid, &j); err != nil {
+	var hook func(*sql.Tx) error
+	if also != nil {
+		hook = func(tx *sql.Tx) error { return also(tx, &j) }
+	}
+	if err := s.store.CreateJobWith(ctx, uid, &j, hook); err != nil {
 		return nil, "", err
 	}
 	nj, err := s.store.GetJob(ctx, uid, j.ID)

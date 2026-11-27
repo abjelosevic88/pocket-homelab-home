@@ -214,20 +214,37 @@ func (s *Store) jobRefs(ctx context.Context, uid int64, j *Job) error {
 
 // CreateJob adds upkeep.
 func (s *Store) CreateJob(ctx context.Context, uid int64, j *Job) error {
+	return s.CreateJobWith(ctx, uid, j, nil)
+}
+
+// CreateJobWith adds upkeep and runs also (when given) in the same
+// transaction, after the insert: what it writes is kept only with the job.
+func (s *Store) CreateJobWith(ctx context.Context, uid int64, j *Job, also func(*sql.Tx) error) error {
+	// one connection: check before the transaction holds it
 	if err := s.jobRefs(ctx, uid, j); err != nil {
 		return err
 	}
 	if j.Source == "" {
 		j.Source = "web"
 	}
-	res, err := s.DB.ExecContext(ctx, `INSERT INTO jobs (user_id, home_id, thing_id, plant_id, care, pro_id, title, notes, every_n, every_unit, due_on, soon_days, est_cost, last_done, done_count, paused, source)
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	res, err := tx.ExecContext(ctx, `INSERT INTO jobs (user_id, home_id, thing_id, plant_id, care, pro_id, title, notes, every_n, every_unit, due_on, soon_days, est_cost, last_done, done_count, paused, source)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, uid, j.HomeID, nullID(j.ThingID), nullID(j.PlantID), j.Care, nullID(j.ProID), j.Title, j.Notes, j.EveryN, j.EveryUnit, j.DueOn,
 		j.SoonDays, nullID(j.EstCost), j.LastDone, j.DoneCount, boolInt(j.Paused), j.Source)
 	if err != nil {
 		return err
 	}
 	j.ID, _ = res.LastInsertId()
-	return nil
+	if also != nil {
+		if err := also(tx); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // UpdateJob saves a job's own fields (not what Done/Calendar/Tasks keep).

@@ -211,10 +211,12 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 		Description: "Look after your home: appliances and systems with their manuals and warranties, upkeep that comes back (boiler service, filters, smoke alarms) with reminders before it is due, house plants and when to water, feed and repot them, a log of repairs and what they cost, meter readings with monthly usage, and the people who work on the house.",
 		Icon:        "/favicon.svg", Version: Version,
 		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "HOME",
-		Publishes: eventTopics,
-		Offers:    linkOffers,
-		Portable:  portable,
-		Uses:      append(linkUses(), core.InferenceUse()),
+		Publishes:    eventTopics,
+		Offers:       linkOffers,
+		Portable:     portable,
+		Uses:         append(linkUses(), core.InferenceUse()),
+		Category:     "Home",
+		Capabilities: capabilities,
 	}
 	if s.cfg.BaseURL != "" {
 		m.OIDC = &core.OIDCRequest{RedirectURIs: []string{s.oidcCallbackURL()}}

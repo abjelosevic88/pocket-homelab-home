@@ -33,6 +33,18 @@ var portable = &core.Portable{
 	},
 }
 
+// capabilities is what Pocket Search, Pocket Day and Pocket Hub may ask Home
+// (docs/capabilities.md in pocket-homelab-core): one route each, served in
+// capabilities.go. Register adds the pocket:* offers.
+var capabilities = core.Capabilities{
+	Search: &core.Searchable{What: "Your homes, appliances, upkeep, the log of work done, pros, house plants and meters, by name and notes",
+		Kinds: []string{"home", "appliance", "job", "record", "pro", "plant", "meter"}, Bangs: []string{"home", "house"}},
+	Day:    &core.DayFeed{Label: "Home", One: "job", Many: "jobs", What: "The upkeep done that day and what it cost, what was due and is still open, meters read and plants looked after"},
+	Widget: &core.Widget{Title: "Home upkeep", What: "Upkeep that is late or due soon, and the plants that need water today"},
+	Capture: &core.QuickCapture{Kinds: []core.CaptureKind{{Kind: "job", Label: "Upkeep job",
+		What: "A one-off upkeep job in your home; with more than one home, start with its name (\"Cabin: fix the gate latch\")", Fields: []string{"due"}}}},
+}
+
 type linkRoute struct {
 	methods string
 	path    *regexp.Regexp
@@ -55,7 +67,7 @@ var errLinkScope = errors.New("outside the link's scope")
 
 // linkAllows reports whether a link token with these scopes may make this request.
 func linkAllows(scopes []string, r *http.Request) bool {
-	if portable.LinkAllows(scopes, r) {
+	if portable.LinkAllows(scopes, r) || capabilities.LinkAllows(scopes, r) {
 		return true
 	}
 	for _, lr := range linkRoutes {

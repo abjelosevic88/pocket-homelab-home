@@ -75,6 +75,17 @@ Plant care can also be read and changed through `/jobs` (`?plant_id`, `?scope=pl
 
 `GET /links/money/accounts`, `/links/money/categories?account_id`, `/links/calendar/calendars`, `/links/contacts?q`, `/links/documents?q`, `/links/inventory?q` answer `{connected, detail, items}` from the person's own connection. `POST /links/calendar/sync` brings the calendar up to date now.
 
+## Pocket Search, Pocket Day and Pocket Hub
+
+Home answers the four routes every Pocket app can offer (`docs/capabilities.md` in Pocket Core), so Pocket Search, Pocket Day and Pocket Hub find it on their own. Each has its own link scope that opens that one route and nothing else (`home:read` and `home:write` do not open them); a signed-in person or a personal token can call them too. Addresses (`url`) are paths in the app.
+
+| Route | Scope | What |
+|---|---|---|
+| `GET /pocket/search?q&limit` | `pocket:search` | `{items}`: what `/search` finds (homes, appliances, upkeep, log entries, pros, plants, meters), the closest first: a name or title with the words before a match in the notes. Each has `id` (`appliance:4`, `job:7`, …), `title`, `snippet` (which home, what is next due and when it was last done; a pro's trade, company and work, never the phone number), `kind` (home, appliance, job, record, pro, plant, meter), `date` (a job: when it is due, a log entry: its day, a meter: the last reading) and `url`. A search without a letter or digit finds nothing |
+| `GET /pocket/day/{date}` | `pocket:day` | `{date, summary, items}`: what `/day` reads. The work logged that day (`done`, `amount` and `currency` in cents when it cost something, `kind` upkeep, repair, …), house upkeep due that day and still open (`kind` due), the meters read and the plant care, one line per kind of care ("Watered: Monstera, Pothos"). Plant care that was only due is left out. `summary` is like "2 jobs done, 1 due, 1 meter read, 2 plants watered" |
+| `GET /pocket/widget` | `pocket:widget` | `{line, metrics, items, url}`: house upkeep that is overdue, due today or due soon (as on the first page), then the plants that need water today. `line` is like "1 job overdue, 2 plants need water", empty when nothing is due; a row's `detail` is "3 days late · Gas boiler" or "in 2 days" (with the home's name when you have more than one). Nothing at all without a home |
+| `POST /pocket/capture` | `pocket:capture` | `{request_id, kind: "job", text, due}` adds a one-off upkeep job, due today unless `due` says otherwise, the same way `POST /jobs` does (the calendar picks it up when you sync upkeep to Pocket Calendar), and answers `201 {id, title, url}`. With one home it goes there. With more, start with the home's name: "Cabin: fix the gate latch" is kept in Cabin as "Fix the gate latch", "Cabin roof leaks" is kept whole; without a name the answer is `400` with how to say it. More lines become the notes. The same `request_id` again answers the same and adds nothing; with other words it is a `400` |
+
 ## Pocket Core app links
 
 Home offers `home:read` (overview, due, day, search, spending, homes, things, plants and plant templates, upkeep, log, meters and readings, pros) and `home:write` (`POST /records`, `PUT/DELETE /records/{id}` for entries that app made, `POST /meters/{id}/readings`, `POST /jobs/{id}/done`, `POST /plants/{id}/done`, `POST /plants/done`). Everything else answers 403 to a link token.

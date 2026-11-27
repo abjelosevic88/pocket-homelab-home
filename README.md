@@ -78,6 +78,8 @@ Set `CORE_URL` and `CORE_REGISTRATION_KEY` and Home joins the box: people sign i
 
 Other apps can read your home (`home:read`: Pocket AI's “what is due this week?” and “which plants need water?”, Pocket Day's journal) or log work for you (`home:write`: a repair booked elsewhere, a smart meter's reading, “I watered the plants”). Events on the bus: `home.job_done`, `home.job_due`, `home.record_added`, `home.reading_added`, `home.thing_saved`, `home.warranty_ending`, `home.plant_saved`, `home.plant_cared`, `home.plant_care_due`. Without Core every connection can be made directly with a URL and a token; the Core-only choices stay visible, greyed out.
 
+Pocket Search, Pocket Day and Pocket Hub find Home on their own, with nothing to set up in any of them: your homes, appliances, upkeep, the log, pros, plants and meters turn up in Search (`!home boiler`, `!house gutters`), Hub shows a "Home upkeep" widget with what is late or due soon and the plants that need water today, and a quick line typed in Hub becomes a one-off upkeep job ("Cabin: fix the gate latch"; with one home the name is not needed). The home's day is offered the same way (Pocket Day keeps its own reading through `home:read` for now). The routes are in [docs/api.md](docs/api.md#pocket-search-pocket-day-and-pocket-hub).
+
 ## Develop
 
 ```sh
